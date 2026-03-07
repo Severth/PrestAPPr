@@ -3,9 +3,19 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const db = require('./db');
 const { calculateAmortization, calcularResumen } = require('./utils/amortization');
+const dotenv = require('dotenv')
+
+
+const env = dotenv.config()
+
+
+
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+
 
 // CORS: allow frontend (served separately or via file://) to call this API
 app.use(cors({ origin: '*' }));
