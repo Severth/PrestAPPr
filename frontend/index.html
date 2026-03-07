@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrestaPri - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+    <nav class="nav">
+        <span class="nav-brand">💰 PrestaPri</span>
+        <div class="nav-links">
+            <a href="index.html" class="nav-link active">Cobros</a>
+            <a href="clientes.html" class="nav-link">Clientes</a>
+            <a href="nuevo-credito.html" class="nav-link">+ Crédito</a>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <!-- Header -->
+        <div class="section-header" style="margin-bottom: 1.5rem;">
+            <div>
+                <h1 class="section-title">Cobros del Día</h1>
+                <p class="text-muted" id="fecha-hoy"></p>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="cargarVencidos()">Ver vencidos</button>
+        </div>
+
+        <!-- Stats row -->
+        <div class="grid-2" style="gap:.75rem; margin-bottom:1.25rem;">
+            <div class="card" style="text-align:center; padding:1rem;">
+                <div style="font-size:1.75rem; font-weight:800; color:var(--primary);" id="total-hoy">—</div>
+                <div class="text-muted" style="font-size:.8rem;">Cuotas hoy</div>
+            </div>
+            <div class="card" style="text-align:center; padding:1rem;">
+                <div style="font-size:1.75rem; font-weight:800; color:var(--success);" id="monto-hoy">—</div>
+                <div class="text-muted" style="font-size:.8rem;">Monto total</div>
+            </div>
+        </div>
+
+        <!-- Main list -->
+        <div id="cobros-container">
+            <div class="spinner"></div>
+        </div>
+
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const fmt = (n) => '$' + parseFloat(n).toLocaleString('es-CO', { minimumFractionDigits: 2 });
+
+        document.getElementById('fecha-hoy').textContent = new Date().toLocaleDateString('es-CO', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        });
+
+        function showToast(msg, type = 'success') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast toast-${type} show`;
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        async function cargarCobrosHoy() {
+            try {
+                const cobros = await api.getCobrosHoy();
+                renderCobros(cobros, 'hoy');
+            } catch (e) {
+                document.getElementById('cobros-container').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>No se pudo conectar al backend. ¿Está corriendo en puerto 3001?</p></div>`;
+            }
+        }
+
+        async function cargarVencidos() {
+            document.getElementById('cobros-container').innerHTML = '<div class="spinner"></div>';
+            try {
+                const cobros = await api.getCobrosVencidos();
+                renderCobros(cobros, 'vencidos');
+            } catch (e) {
+                showToast('Error al cargar vencidos', 'error');
+            }
+        }
+
+        function renderCobros(cobros, tipo) {
+            const container = document.getElementById('cobros-container');
+            document.getElementById('total-hoy').textContent = cobros.length;
+            const total = cobros.reduce((s, c) => s + parseFloat(c.monto_cuota), 0);
+            document.getElementById('monto-hoy').textContent = fmt(total);
+
+            if (cobros.length === 0) {
+                container.innerHTML = `<div class="empty-state"><div class="icon">🎉</div><p>${tipo === 'hoy' ? 'No hay cobros pendientes para hoy.' : 'No hay cuotas vencidas.'}</p></div>`;
+                return;
+            }
+
+            container.innerHTML = `<div class="space-y">${cobros.map(c => `
+            <div class="card" id="card-${c.cuota_id}">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:.5rem;">
+                    <div style="flex:1;">
+                        <div style="font-weight:700; font-size:1rem;">${c.nombre_completo}</div>
+                        <div class="text-muted" style="font-size:.8rem;">Cuota #${c.numero_cuota} · Préstamo #${c.prestamo_id}</div>
+                        <div style="font-size:1.25rem; font-weight:800; color:var(--primary); margin:.25rem 0;">${fmt(c.monto_cuota)}</div>
+                        <div class="text-muted" style="font-size:.8rem;">Vence: ${c.fecha_vencimiento}</div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:.5rem; flex-shrink:0;">
+                        <button class="btn btn-success btn-sm" onclick="pagarCuota(${c.cuota_id})">✓ Pagado</button>
+                        <a href="${c.wa_link}" target="_blank" class="btn btn-sm" style="background:#25D366;color:white;">📲 WA</a>
+                    </div>
+                </div>
+            </div>
+        `).join('')}</div>`;
+        }
+
+        async function pagarCuota(id) {
+            try {
+                await api.pagarCuota(id);
+                document.getElementById(`card-${id}`).style.opacity = '0.4';
+                document.getElementById(`card-${id}`).style.pointerEvents = 'none';
+                showToast('✅ Cuota marcada como pagada');
+            } catch (e) {
+                showToast('Error al registrar pago', 'error');
+            }
+        }
+
+        cargarCobrosHoy();
+    </script>
+</body>
+
+</html>

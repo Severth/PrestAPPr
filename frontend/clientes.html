@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrestAPPr - Clientes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+    <nav class="nav">
+        <span class="nav-brand">💰 PrestAPPr</span>
+        <div class="nav-links">
+            <a href="index.html" class="nav-link">Cobros</a>
+            <a href="clientes.html" class="nav-link active">Clientes</a>
+            <a href="nuevo-credito.html" class="nav-link">+ Crédito</a>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <div class="section-header">
+            <h1 class="section-title">Clientes</h1>
+            <button class="btn btn-primary btn-sm" onclick="mostrarModalNuevo()">+ Nuevo</button>
+        </div>
+
+        <!-- Search -->
+        <div style="margin-bottom:1rem; position:relative;">
+            <input type="text" id="buscador" class="input" placeholder="🔍 Buscar por nombre o DNI..."
+                oninput="buscar(this.value)">
+        </div>
+
+        <!-- List -->
+        <div id="lista-container">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Perfil del cliente (panel lateral expandible) -->
+        <div id="perfil-panel" style="display:none; margin-top:1rem;"></div>
+
+    </div>
+
+    <!-- Modal Nuevo Cliente -->
+    <div id="modal-overlay"
+        style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:flex-end; justify-content:center;"
+        onclick="cerrarModal(event)">
+        <div
+            style="background:white; border-radius:1.5rem 1.5rem 0 0; padding:1.5rem; width:100%; max-width:520px; max-height:90vh; overflow-y:auto;">
+            <h2 style="font-size:1.1rem; font-weight:700; margin-bottom:1.25rem;">Nuevo Cliente</h2>
+            <form id="form-cliente" class="space-y" onsubmit="guardarCliente(event)">
+                <div class="form-group">
+                    <label class="label">Nombre Completo *</label>
+                    <input type="text" name="nombre_completo" class="input" required placeholder="Ej. María García">
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="label">DNI / Cédula *</label>
+                        <input type="text" name="dni" class="input" required placeholder="12345678">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">Teléfono *</label>
+                        <input type="tel" name="telefono" class="input" required placeholder="3001234567">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="label">Correo Electrónico</label>
+                    <input type="email" name="correo" class="input" placeholder="correo@ejemplo.com">
+                </div>
+                <div class="form-group">
+                    <label class="label">Dirección</label>
+                    <input type="text" name="direccion" class="input" placeholder="Calle, ciudad...">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block mt-2">Guardar Cliente</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const fmt = (n) => '$' + parseFloat(n).toLocaleString('es-CO', { minimumFractionDigits: 2 });
+        let allUsers = [];
+
+        function showToast(msg, type = 'success') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast toast-${type} show`;
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        async function cargarClientes(q = '') {
+            try {
+                const usuarios = await api.getUsuarios(q);
+                allUsers = usuarios;
+                renderClientes(usuarios);
+            } catch (e) {
+                document.getElementById('lista-container').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Error al conectar con el backend.</p></div>`;
+            }
+        }
+
+        function renderClientes(usuarios) {
+            const c = document.getElementById('lista-container');
+            if (usuarios.length === 0) {
+                c.innerHTML = `<div class="empty-state"><div class="icon">👥</div><p>No se encontraron clientes.</p></div>`;
+                return;
+            }
+            c.innerHTML = `<div class="space-y">${usuarios.map(u => `
+            <div class="card" style="cursor:pointer;" onclick="verPerfil(${u.id})">
+                <div style="display:flex; align-items:center; gap:.75rem;">
+                    <div style="background:var(--primary); color:white; width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.1rem; flex-shrink:0;">
+                        ${u.nombre_completo.charAt(0).toUpperCase()}
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-weight:700;">${u.nombre_completo}</div>
+                        <div class="text-muted" style="font-size:.8rem;">DNI: ${u.dni} · 📞 ${u.telefono}</div>
+                    </div>
+                    <a href="nuevo-credito.html?usuario_id=${u.id}&nombre=${encodeURIComponent(u.nombre_completo)}" 
+                       class="btn btn-primary btn-sm" onclick="event.stopPropagation()">+ Crédito</a>
+                </div>
+            </div>
+        `).join('')}</div>`;
+        }
+
+        async function verPerfil(id) {
+            const panel = document.getElementById('perfil-panel');
+            panel.style.display = 'block';
+            panel.innerHTML = '<div class="spinner"></div>';
+            panel.scrollIntoView({ behavior: 'smooth' });
+
+            try {
+                const u = await api.getUsuario(id);
+                const estadoBadge = { 'Activo': 'badge-primary', 'Finalizado': 'badge-success', 'Mora': 'badge-danger' };
+                panel.innerHTML = `
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem;">
+                        <div>
+                            <h2 style="font-size:1.1rem; font-weight:800;">${u.nombre_completo}</h2>
+                            <div class="text-muted" style="font-size:.8rem;">DNI: ${u.dni}</div>
+                        </div>
+                        <button onclick="document.getElementById('perfil-panel').style.display='none'" style="background:none; border:none; font-size:1.5rem; cursor:pointer;">×</button>
+                    </div>
+                    <div class="grid-2" style="font-size:.875rem; gap:.5rem; margin-bottom:1rem;">
+                        <div><strong>📞 Teléfono:</strong><br><a href="tel:${u.telefono}">${u.telefono}</a></div>
+                        <div><strong>✉️ Correo:</strong><br>${u.correo || '—'}</div>
+                        <div style="grid-column:1/-1;"><strong>📍 Dirección:</strong> ${u.direccion || '—'}</div>
+                    </div>
+                    <hr class="divider">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem;">
+                        <strong style="font-size:.95rem;">Préstamos (${u.prestamos.length})</strong>
+                        <a href="nuevo-credito.html?usuario_id=${u.id}&nombre=${encodeURIComponent(u.nombre_completo)}" class="btn btn-primary btn-sm">+ Nuevo Crédito</a>
+                    </div>
+                    ${u.prestamos.length === 0 ? '<p class="text-muted">Sin préstamos.</p>' :
+                        `<div class="space-y">${u.prestamos.map(p => `
+                            <a href="prestamo.html?id=${p.id}" style="text-decoration:none; display:block;">
+                                <div style="background:var(--bg); border-radius:.75rem; padding:.75rem 1rem; display:flex; justify-content:space-between; align-items:center;">
+                                    <div>
+                                        <div style="font-weight:700;">${fmt(p.monto)}</div>
+                                        <div class="text-muted" style="font-size:.78rem;">${p.plazo_meses} meses · ${p.tasa_interes_anual}% anual · ${p.fecha_inicio}</div>
+                                    </div>
+                                    <span class="badge ${estadoBadge[p.estado] || 'badge-primary'}">${p.estado}</span>
+                                </div>
+                            </a>
+                        `).join('')}</div>`
+                    }
+                </div>`;
+            } catch (e) {
+                showToast('Error al cargar perfil', 'error');
+                panel.style.display = 'none';
+            }
+        }
+
+        function buscar(q) {
+            clearTimeout(window._buscarTimer);
+            window._buscarTimer = setTimeout(() => cargarClientes(q), 300);
+        }
+
+        function mostrarModalNuevo() {
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function cerrarModal(e) {
+            if (e.target.id === 'modal-overlay') {
+                document.getElementById('modal-overlay').style.display = 'none';
+            }
+        }
+
+        async function guardarCliente(e) {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const data = Object.fromEntries(fd.entries());
+            try {
+                await api.crearUsuario(data);
+                showToast('✅ Cliente creado exitosamente');
+                document.getElementById('modal-overlay').style.display = 'none';
+                e.target.reset();
+                cargarClientes();
+            } catch (err) {
+                showToast(err.error || 'Error al crear cliente', 'error');
+            }
+        }
+
+        cargarClientes();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrestAPPr - Nuevo Crédito</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .autocomplete-list {
+            position: absolute;
+            z-index: 50;
+            width: 100%;
+            background: white;
+            border: 2px solid var(--primary);
+            border-top: none;
+            border-radius: 0 0 .75rem .75rem;
+            max-height: 200px;
+            overflow-y: auto;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        }
+
+        .autocomplete-item {
+            padding: .65rem 1rem;
+            cursor: pointer;
+            font-size: .9rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .autocomplete-item:hover {
+            background: #f0f0ff;
+        }
+
+        .resumen-box {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            border-radius: 1rem;
+            padding: 1.25rem;
+        }
+
+        .resumen-label {
+            opacity: .8;
+            font-size: .8rem;
+        }
+
+        .resumen-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+        }
+
+        .step {
+            display: none;
+        }
+
+        .step.active {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="nav">
+        <span class="nav-brand">💰 PrestAPPr</span>
+        <div class="nav-links">
+            <a href="index.html" class="nav-link">Cobros</a>
+            <a href="clientes.html" class="nav-link">Clientes</a>
+            <a href="nuevo-credito.html" class="nav-link active">+ Crédito</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="section-header">
+            <h1 class="section-title">Nuevo Crédito</h1>
+        </div>
+
+        <form id="loan-form" class="space-y" onsubmit="enviarFormulario(event)">
+
+            <!-- ── PASO 1: Seleccionar Usuario ── -->
+            <div class="card">
+                <div style="font-weight:700; margin-bottom:.75rem;">1. Cliente</div>
+                <div style="position:relative;">
+                    <input type="text" id="user-search" class="input"
+                        placeholder="🔍 Buscar cliente por nombre o DNI..." autocomplete="off"
+                        oninput="buscarUsuarios(this.value)">
+                    <div id="autocomplete-list" class="autocomplete-list" style="display:none;"></div>
+                </div>
+                <input type="hidden" id="usuario_id" name="usuario_id" required>
+                <div id="usuario-seleccionado" style="display:none; margin-top:.75rem;"></div>
+            </div>
+
+            <!-- ── PASO 2: Datos del Crédito ── -->
+            <div class="card">
+                <div style="font-weight:700; margin-bottom:.75rem;">2. Configuración del Crédito</div>
+                <div class="space-y">
+                    <div class="form-group">
+                        <label class="label">Monto del Préstamo *</label>
+                        <input type="number" id="monto" name="monto" class="input" placeholder="0.00" min="1"
+                            step="0.01" oninput="calcularResumen()" required>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="label">Tasa Anual (%)</label>
+                            <input type="number" id="tasa" name="tasa_interes_anual" class="input" value="12" min="0.1"
+                                step="0.1" oninput="calcularResumen()" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="label">Plazo (meses)</label>
+                            <input type="number" id="plazo" name="plazo_meses" class="input" value="12" min="1"
+                                max="360" oninput="calcularResumen()" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="label">Fecha de Inicio</label>
+                        <input type="date" id="fecha_inicio" name="fecha_inicio" class="input" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── RESUMEN EN TIEMPO REAL ── -->
+            <div id="resumen-box" class="resumen-box" style="display:none;">
+                <div style="margin-bottom:.75rem; font-weight:700; font-size:1rem;">📊 Resumen Estimado</div>
+                <div class="grid-2" style="gap:1rem;">
+                    <div>
+                        <div class="resumen-label">Cuota Mensual</div>
+                        <div class="resumen-value" id="r-cuota">$0.00</div>
+                    </div>
+                    <div>
+                        <div class="resumen-label">Total Intereses</div>
+                        <div class="resumen-value" id="r-intereses">$0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" id="btn-submit" class="btn btn-primary btn-block" style="font-size:1.05rem;">
+                🚀 Generar Crédito y Plan de Pagos
+            </button>
+
+        </form>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const fmt = (n) => '$' + parseFloat(n).toLocaleString('es-CO', { minimumFractionDigits: 2 });
+        let searchTimer;
+
+        // Pre-fill usuario from URL params
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('usuario_id')) {
+            document.getElementById('usuario_id').value = params.get('usuario_id');
+            document.getElementById('user-search').value = params.get('nombre') || '';
+            document.getElementById('usuario-seleccionado').style.display = 'block';
+            document.getElementById('usuario-seleccionado').innerHTML = `<span class="badge badge-primary">✓ ${decodeURIComponent(params.get('nombre') || '')}</span>`;
+        }
+
+        // Set today's date
+        document.getElementById('fecha_inicio').valueAsDate = new Date();
+
+        function showToast(msg, type = 'success') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast toast-${type} show`;
+            setTimeout(() => t.classList.remove('show'), 3500);
+        }
+
+        async function buscarUsuarios(q) {
+            const list = document.getElementById('autocomplete-list');
+            if (q.length < 1) { list.style.display = 'none'; return; }
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(async () => {
+                try {
+                    const usuarios = await api.getUsuarios(q);
+                    if (usuarios.length === 0) { list.style.display = 'none'; return; }
+                    list.innerHTML = usuarios.map(u =>
+                        `<div class="autocomplete-item" onclick="seleccionarUsuario(${u.id}, '${u.nombre_completo.replace(/'/g, "\\'")}')">
+                        <strong>${u.nombre_completo}</strong> <span style="color:var(--text-muted);font-size:.8rem;">· ${u.dni}</span>
+                    </div>`
+                    ).join('');
+                    list.style.display = 'block';
+                } catch (e) { list.style.display = 'none'; }
+            }, 250);
+        }
+
+        function seleccionarUsuario(id, nombre) {
+            document.getElementById('usuario_id').value = id;
+            document.getElementById('user-search').value = nombre;
+            document.getElementById('autocomplete-list').style.display = 'none';
+            const sel = document.getElementById('usuario-seleccionado');
+            sel.style.display = 'block';
+            sel.innerHTML = `<span class="badge badge-primary">✓ ${nombre}</span>`;
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#user-search')) {
+                document.getElementById('autocomplete-list').style.display = 'none';
+            }
+        });
+
+        let calcTimer;
+        function calcularResumen() {
+            const monto = parseFloat(document.getElementById('monto').value);
+            const tasa = parseFloat(document.getElementById('tasa').value);
+            const plazo = parseInt(document.getElementById('plazo').value);
+
+            if (!monto || !tasa || !plazo) return;
+
+            clearTimeout(calcTimer);
+            calcTimer = setTimeout(async () => {
+                try {
+                    const res = await api.calcular(monto, tasa, plazo);
+                    document.getElementById('r-cuota').textContent = fmt(res.cuotaMensual);
+                    document.getElementById('r-intereses').textContent = fmt(res.totalIntereses);
+                    document.getElementById('resumen-box').style.display = 'block';
+                } catch (e) {
+                    // Fallback local calculation
+                    const i = (tasa / 100) / 12;
+                    const n = plazo;
+                    const cuota = monto * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
+                    document.getElementById('r-cuota').textContent = fmt(cuota);
+                    document.getElementById('r-intereses').textContent = fmt(cuota * n - monto);
+                    document.getElementById('resumen-box').style.display = 'block';
+                }
+            }, 400);
+        }
+
+        async function enviarFormulario(e) {
+            e.preventDefault();
+            const usuario_id = document.getElementById('usuario_id').value;
+            if (!usuario_id) { showToast('Selecciona un cliente', 'error'); return; }
+
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = true;
+            btn.textContent = 'Generando...';
+
+            const fd = new FormData(e.target);
+            const data = {
+                usuario_id: parseInt(fd.get('usuario_id')),
+                monto: parseFloat(fd.get('monto')),
+                tasa_interes_anual: parseFloat(fd.get('tasa_interes_anual')),
+                plazo_meses: parseInt(fd.get('plazo_meses')),
+                fecha_inicio: fd.get('fecha_inicio')
+            };
+
+            try {
+                const resp = await api.crearPrestamo(data);
+                showToast(`✅ Crédito #${resp.prestamo_id} creado con ${resp.cuotas_generadas} cuotas`);
+                setTimeout(() => window.location.href = `prestamo.html?id=${resp.prestamo_id}`, 1500);
+            } catch (err) {
+                showToast(err.error || 'Error al crear el crédito', 'error');
+                btn.disabled = false;
+                btn.textContent = '🚀 Generar Crédito y Plan de Pagos';
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrestAPPr - Detalle Préstamo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+    <nav class="nav">
+        <span class="nav-brand">💰 PrestAPPr</span>
+        <div class="nav-links">
+            <a href="index.html" class="nav-link">Cobros</a>
+            <a href="clientes.html" class="nav-link">Clientes</a>
+            <a href="nuevo-credito.html" class="nav-link">+ Crédito</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="main-content">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const fmt = (n) => '$' + parseFloat(n).toLocaleString('es-CO', { minimumFractionDigits: 2 });
+        const params = new URLSearchParams(window.location.search);
+        const prestamoId = params.get('id');
+
+        function showToast(msg, type = 'success') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast toast-${type} show`;
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        async function cargarPrestamo() {
+            if (!prestamoId) {
+                document.getElementById('main-content').innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>Sin ID de préstamo.</p></div>';
+                return;
+            }
+            try {
+                const p = await api.getPrestamo(prestamoId);
+                renderPrestamo(p);
+            } catch (e) {
+                document.getElementById('main-content').innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>Error cargando préstamo.</p></div>';
+            }
+        }
+
+        function renderPrestamo(p) {
+            const estadoBadge = { 'Activo': 'badge-primary', 'Finalizado': 'badge-success', 'Mora': 'badge-danger' };
+            const pagadas = p.cuotas.filter(c => c.estado === 'Pagado').length;
+            const progreso = p.cuotas.length > 0 ? Math.round((pagadas / p.cuotas.length) * 100) : 0;
+
+            document.getElementById('main-content').innerHTML = `
+            <!-- Header del préstamo -->
+            <div class="card" style="margin-bottom:1rem;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div>
+                        <div class="text-muted" style="font-size:.8rem; margin-bottom:.25rem;">Préstamo #${p.id}</div>
+                        <div style="font-size:1.5rem; font-weight:800;">${fmt(p.monto)}</div>
+                        <div style="font-weight:600; color:var(--primary); margin:.15rem 0;">${p.nombre_completo}</div>
+                        <div class="text-muted" style="font-size:.8rem;">${p.tasa_interes_anual}% anual · ${p.plazo_meses} meses · Inicio: ${p.fecha_inicio}</div>
+                    </div>
+                    <span class="badge ${estadoBadge[p.estado] || 'badge-primary'}">${p.estado}</span>
+                </div>
+                <!-- Barra de progreso -->
+                <div style="margin-top:1rem;">
+                    <div style="display:flex; justify-content:space-between; font-size:.8rem; color:var(--text-muted); margin-bottom:.35rem;">
+                        <span>${pagadas} de ${p.cuotas.length} cuotas pagadas</span>
+                        <span>${progreso}%</span>
+                    </div>
+                    <div style="background:var(--border); border-radius:999px; height:8px;">
+                        <div style="background:var(--success); width:${progreso}%; height:8px; border-radius:999px; transition:width .4s;"></div>
+                    </div>
+                </div>
+                <div style="margin-top:1rem;">
+                    <a href="tel:${p.telefono}" class="btn btn-outline btn-sm">📞 Llamar</a>
+                </div>
+            </div>
+
+            <!-- Plan de pagos -->
+            <div class="section-header" style="margin-bottom:.75rem;">
+                <strong>Plan de Pagos</strong>
+            </div>
+            <div class="space-y">
+                ${p.cuotas.map(c => `
+                    <div id="cuota-${c.id}" class="card" style="${c.estado === 'Pagado' ? 'opacity:.5;' : ''}">
+                        <div style="display:flex; align-items:center; gap:.75rem;">
+                            <div style="background:${c.estado === 'Pagado' ? 'var(--success)' : 'var(--primary)'}; color:white; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.9rem; flex-shrink:0;">
+                                ${c.estado === 'Pagado' ? '✓' : c.numero_cuota}
+                            </div>
+                            <div style="flex:1;">
+                                <div style="font-weight:700;">${fmt(c.monto_cuota)}</div>
+                                <div class="text-muted" style="font-size:.78rem;">Vence: ${c.fecha_vencimiento} · Capital: ${fmt(c.capital)} · Interés: ${fmt(c.interes)}</div>
+                                <div class="text-muted" style="font-size:.78rem;">Saldo: ${fmt(c.saldo)}</div>
+                            </div>
+                            ${c.estado !== 'Pagado' ? `
+                            <button class="btn btn-success btn-sm" onclick="pagarCuota(${c.id})">✓</button>
+                            ` : `<span class="badge badge-success">Pagado</span>`}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        }
+
+        async function pagarCuota(id) {
+            try {
+                await api.pagarCuota(id);
+                showToast('✅ Cuota pagada');
+                cargarPrestamo(); // Reload to update progress bar
+            } catch (e) {
+                showToast('Error al registrar pago', 'error');
+            }
+        }
+
+        cargarPrestamo();
+    </script>
+</body>
+
+</html>
