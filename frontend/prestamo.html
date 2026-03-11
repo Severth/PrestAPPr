@@ -5,8 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PrestAPPr - Detalle Préstamo</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind Custom CSS Used -->
     <link rel="stylesheet" href="css/styles.css">
+    <script src="js/theme.js"></script>
 </head>
 
 <body>
@@ -17,12 +18,69 @@
             <a href="index.html" class="nav-link">Cobros</a>
             <a href="clientes.html" class="nav-link">Clientes</a>
             <a href="nuevo-credito.html" class="nav-link">+ Crédito</a>
+            <button id="theme-toggle" class="btn btn-sm"
+                style="background:transparent; color:inherit; padding: 0.3rem; border:none; box-shadow:none; font-size:1.2rem;"
+                onclick="toggleTheme()">🌙</button>
         </div>
     </nav>
 
     <div class="container">
         <div id="main-content">
             <div class="spinner"></div>
+        </div>
+    </div>
+
+    <!-- Modal Pago Avanzado -->
+    <div id="modal-pago-overlay"
+        style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:flex-end; justify-content:center;"
+        onclick="cerrarModalPago(event)">
+        <div
+            style="background:var(--card); border-radius:1.5rem 1.5rem 0 0; padding:1.5rem; width:100%; max-width:520px; max-height:90vh; overflow-y:auto;">
+            <h2 style="font-size:1.1rem; font-weight:700; margin-bottom:1.25rem;">Registrar Pago</h2>
+            <form id="form-pago" class="space-y" onsubmit="enviarPago(event)">
+                <input type="hidden" id="pago_cuota_id">
+
+                <div class="form-group">
+                    <label class="label">Concepto de Recepción</label>
+                    <select id="pago_tipo" class="select" required style="font-weight:600;" onchange="toggleCustomCapital()">
+                        <option value="completo">Pago Completo (Capital + Interés)</option>
+                        <option value="interes">Solo Intereses (Alarga 1 mes el préstamo)</option>
+                        <option value="capital">Abono Personalizado (Se recalculará la deuda)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="group-capital-abonado" style="display:none; background: var(--bg); padding:1.2rem; border-radius:.75rem; border: 1px dashed var(--primary); margin-top:0.5rem;">
+                    <label class="label" style="color:var(--primary);">Abono Exacto a Capital *</label>
+                    <input type="text" id="pago_capital_abonado" class="input" style="background:var(--card); font-size:1.1rem; border:1px solid var(--border);" placeholder="Ej. 100.000" oninput="formatearMonedaModal(this)">
+                    <div class="text-muted" style="font-size:0.8rem; margin-top:0.5rem; line-height:1.4;">El cliente asumirá este abono directo a capital <strong>más</strong> los intereses del mes. Las cuotas futuras se recalcularán a la baja.</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">Método de Pago</label>
+                    <select id="pago_metodo" class="select" required>
+                        <option value="Efectivo">Efectivo Físico</option>
+                        <option value="Transferencia">Transferencia Bancaria</option>
+                    </select>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="label">Cuenta Origen (Cliente)</label>
+                        <input type="text" id="pago_origen" class="input" placeholder="Ej. Bancolombia">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">Cuenta Destino</label>
+                        <input type="text" id="pago_destino" class="input" placeholder="Ej. Nequi">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">Cobrador / Responsable</label>
+                    <input type="text" id="pago_cobrador" class="input" placeholder="Nombre de quien recibe">
+                </div>
+
+                <button type="submit" class="btn btn-success btn-block mt-2" id="btn-submit-pago">Confirmar Ingreso a Caja</button>
+            </form>
         </div>
     </div>
 
@@ -58,31 +116,48 @@
             const estadoBadge = { 'Activo': 'badge-primary', 'Finalizado': 'badge-success', 'Mora': 'badge-danger' };
             const pagadas = p.cuotas.filter(c => c.estado === 'Pagado').length;
             const progreso = p.cuotas.length > 0 ? Math.round((pagadas / p.cuotas.length) * 100) : 0;
+            
+            // Calculate Remaining Debt
+            const saldoTotalAdeudado = p.cuotas.reduce((acc, c) => {
+                if (c.estado === 'Pendiente' || c.estado === 'Mora') {
+                    return acc + c.monto_cuota;
+                } else if (c.estado === 'Abono_interes') {
+                    return acc + c.capital;
+                } else if (c.estado === 'Abono_capital') {
+                    // This logic depends on backend implementation, simplistically adding pending balance
+                    return acc + c.saldo; 
+                }
+                return acc;
+            }, 0);
 
             document.getElementById('main-content').innerHTML = `
             <!-- Header del préstamo -->
             <div class="card" style="margin-bottom:1rem;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                     <div>
-                        <div class="text-muted" style="font-size:.8rem; margin-bottom:.25rem;">Préstamo #${p.id}</div>
-                        <div style="font-size:1.5rem; font-weight:800;">${fmt(p.monto)}</div>
-                        <div style="font-weight:600; color:var(--primary); margin:.15rem 0;">${p.nombre_completo}</div>
-                        <div class="text-muted" style="font-size:.8rem;">${p.tasa_interes_anual}% anual · ${p.plazo_meses} meses · Inicio: ${p.fecha_inicio}</div>
+                        <div class="text-muted" style="font-size:1.1rem; font-weight: 700; color: var(--danger); margin-bottom:.25rem;">Deuda Restante</div>
+                        <div style="font-size:2rem; font-weight:800; line-height: 1;">${fmt(saldoTotalAdeudado)}</div>
+                        <div style="font-weight:600; color:var(--primary); margin-top:.5rem;">${p.nombre_completo}</div>
+                        <div class="text-muted" style="font-size:.8rem; margin-top:0.25rem;">
+                            Monto Original: <strong>${fmt(p.monto)}</strong><br>
+                            Préstamo #${p.id} · ${p.tasa_interes_anual}% anual · ${p.plazo_meses} meses
+                        </div>
                     </div>
                     <span class="badge ${estadoBadge[p.estado] || 'badge-primary'}">${p.estado}</span>
                 </div>
                 <!-- Barra de progreso -->
-                <div style="margin-top:1rem;">
+                <div style="margin-top:1.5rem;">
                     <div style="display:flex; justify-content:space-between; font-size:.8rem; color:var(--text-muted); margin-bottom:.35rem;">
                         <span>${pagadas} de ${p.cuotas.length} cuotas pagadas</span>
-                        <span>${progreso}%</span>
+                        <span style="font-weight:700;">${progreso}%</span>
                     </div>
-                    <div style="background:var(--border); border-radius:999px; height:8px;">
-                        <div style="background:var(--success); width:${progreso}%; height:8px; border-radius:999px; transition:width .4s;"></div>
+                    <div style="background:var(--border); border-radius:999px; height:10px;">
+                        <div style="background:var(--success); width:${progreso}%; height:10px; border-radius:999px; transition:width .6s cubic-bezier(0.4, 0, 0.2, 1);"></div>
                     </div>
                 </div>
-                <div style="margin-top:1rem;">
-                    <a href="tel:${p.telefono}" class="btn btn-outline btn-sm">📞 Llamar</a>
+                <div style="margin-top:1.5rem; display:flex; gap:0.5rem;">
+                    <a href="tel:${p.telefono}" class="btn btn-outline btn-sm" style="flex:1;">📞 Llamar</a>
+                    <a href="https://wa.me/57${p.telefono.replace(/\D/g, '')}?text=${encodeURIComponent('Hola ' + p.nombre_completo + ', te escribo respecto a tu crédito con nosotros.')}" target="_blank" class="btn btn-success btn-sm" style="flex:1; background:#25D366; box-shadow:none;">📲 WhatsApp</a>
                 </div>
             </div>
 
@@ -102,9 +177,9 @@
                                 <div class="text-muted" style="font-size:.78rem;">Vence: ${c.fecha_vencimiento} · Capital: ${fmt(c.capital)} · Interés: ${fmt(c.interes)}</div>
                                 <div class="text-muted" style="font-size:.78rem;">Saldo: ${fmt(c.saldo)}</div>
                             </div>
-                            ${c.estado !== 'Pagado' ? `
-                            <button class="btn btn-success btn-sm" onclick="pagarCuota(${c.id})">✓</button>
-                            ` : `<span class="badge badge-success">Pagado</span>`}
+                            ${c.estado === 'Pendiente' ? `
+                            <button class="btn btn-success btn-sm" onclick="abrirModalPago(${c.id})">✓ Pagar</button>
+                            ` : `<span class="badge badge-success">${c.estado.replace('_', ' ')}</span>`}
                         </div>
                     </div>
                 `).join('')}
@@ -112,13 +187,65 @@
         `;
         }
 
-        async function pagarCuota(id) {
+        function abrirModalPago(cuotaId) {
+            document.getElementById('pago_cuota_id').value = cuotaId;
+            document.getElementById('pago_tipo').value = 'completo';
+            document.getElementById('pago_capital_abonado').value = '';
+            toggleCustomCapital();
+            document.getElementById('modal-pago-overlay').style.display = 'flex';
+        }
+
+        function formatearMonedaModal(input) {
+            let valor = input.value.replace(/\D/g, '');
+            if (valor === '') { input.value = ''; return; }
+            input.value = parseInt(valor, 10).toLocaleString('es-CO');
+        }
+
+        function toggleCustomCapital() {
+            const tipo = document.getElementById('pago_tipo').value;
+            const group = document.getElementById('group-capital-abonado');
+            if (tipo === 'capital') {
+                group.style.display = 'block';
+                document.getElementById('pago_capital_abonado').required = true;
+                setTimeout(() => document.getElementById('pago_capital_abonado').focus(), 50);
+            } else {
+                group.style.display = 'none';
+                document.getElementById('pago_capital_abonado').required = false;
+            }
+        }
+
+        function cerrarModalPago(e) {
+            if (e && e.target.id !== 'modal-pago-overlay') return;
+            document.getElementById('modal-pago-overlay').style.display = 'none';
+        }
+
+        async function enviarPago(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit-pago');
+            btn.disabled = true;
+            btn.textContent = 'Procesando...';
+
+            const id = document.getElementById('pago_cuota_id').value;
+            const capitalStr = document.getElementById('pago_capital_abonado').value.replace(/\D/g, '');
+            const data = {
+                tipo: document.getElementById('pago_tipo').value,
+                metodo: document.getElementById('pago_metodo').value,
+                cuenta_origen: document.getElementById('pago_origen').value,
+                cuenta_destino: document.getElementById('pago_destino').value,
+                cobrador: document.getElementById('pago_cobrador').value,
+                capital_abonado: capitalStr ? parseInt(capitalStr, 10) : null
+            };
+
             try {
-                await api.pagarCuota(id);
-                showToast('✅ Cuota pagada');
-                cargarPrestamo(); // Reload to update progress bar
-            } catch (e) {
+                await api.pagarCuota(id, data);
+                showToast('✅ Pago registrado correctamente');
+                cerrarModalPago({ target: { id: 'modal-pago-overlay' } });
+                cargarPrestamo(); // Reload to update UI
+            } catch (err) {
                 showToast('Error al registrar pago', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Confirmar Ingreso a Caja';
             }
         }
 

@@ -5,8 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PrestAPPr - Clientes</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind Custom CSS Used -->
     <link rel="stylesheet" href="css/styles.css">
+    <script src="js/theme.js"></script>
 </head>
 
 <body>
@@ -17,6 +18,9 @@
             <a href="index.html" class="nav-link">Cobros</a>
             <a href="clientes.html" class="nav-link active">Clientes</a>
             <a href="nuevo-credito.html" class="nav-link">+ Crédito</a>
+            <button id="theme-toggle" class="btn btn-sm"
+                style="background:transparent; color:inherit; padding: 0.3rem; border:none; box-shadow:none; font-size:1.2rem;"
+                onclick="toggleTheme()">🌙</button>
         </div>
     </nav>
 
@@ -27,10 +31,22 @@
             <button class="btn btn-primary btn-sm" onclick="mostrarModalNuevo()">+ Nuevo</button>
         </div>
 
+        <!-- Solicitudes Section -->
+        <div id="solicitudes-container" style="display:none; margin-bottom: 2rem;">
+            <h2 style="font-size:1.1rem; font-weight:700; margin-bottom:1rem; color:var(--warning);">🛎️ Solicitudes
+                Pendientes</h2>
+            <div id="solicitudes-list" class="space-y"></div>
+        </div>
+
         <!-- Search -->
-        <div style="margin-bottom:1rem; position:relative;">
-            <input type="text" id="buscador" class="input" placeholder="🔍 Buscar por nombre o DNI..."
-                oninput="buscar(this.value)">
+        <div style="margin-bottom:1rem; position:relative; display: flex; gap: 0.5rem;">
+            <input type="text" id="buscador" class="input" style="flex:1;" placeholder="🔍 Buscar por nombre o DNI..."
+                oninput="filtrarLocal()">
+            <select id="filtro-interes" class="select" style="width:auto; min-width:140px;" onchange="filtrarLocal()">
+                <option value="todos">Todos</option>
+                <option value="con-interes">Con Interés</option>
+                <option value="sin-interes">Al 0% (Sin Interés)</option>
+            </select>
         </div>
 
         <!-- List -->
@@ -48,7 +64,7 @@
         style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:flex-end; justify-content:center;"
         onclick="cerrarModal(event)">
         <div
-            style="background:white; border-radius:1.5rem 1.5rem 0 0; padding:1.5rem; width:100%; max-width:520px; max-height:90vh; overflow-y:auto;">
+            style="background:var(--card); border-radius:1.5rem 1.5rem 0 0; padding:1.5rem; width:100%; max-width:520px; max-height:90vh; overflow-y:auto;">
             <h2 style="font-size:1.1rem; font-weight:700; margin-bottom:1.25rem;">Nuevo Cliente</h2>
             <form id="form-cliente" class="space-y" onsubmit="guardarCliente(event)">
                 <div class="form-group">
@@ -96,7 +112,7 @@
             try {
                 const usuarios = await api.getUsuarios(q);
                 allUsers = usuarios;
-                renderClientes(usuarios);
+                filtrarLocal();
             } catch (e) {
                 document.getElementById('lista-container').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Error al conectar con el backend.</p></div>`;
             }
@@ -173,9 +189,24 @@
             }
         }
 
-        function buscar(q) {
+        function filtrarLocal() {
             clearTimeout(window._buscarTimer);
-            window._buscarTimer = setTimeout(() => cargarClientes(q), 300);
+            window._buscarTimer = setTimeout(() => {
+                const q = document.getElementById('buscador').value.toLowerCase();
+                const fInteres = document.getElementById('filtro-interes').value;
+
+                let filtrados = allUsers.filter(u =>
+                    u.nombre_completo.toLowerCase().includes(q) || u.dni.includes(q)
+                );
+
+                if (fInteres === 'con-interes') {
+                    filtrados = filtrados.filter(u => u.creditos_con_interes > 0);
+                } else if (fInteres === 'sin-interes') {
+                    filtrados = filtrados.filter(u => u.creditos_con_interes === 0);
+                }
+
+                renderClientes(filtrados);
+            }, 300);
         }
 
         function mostrarModalNuevo() {
@@ -203,7 +234,52 @@
             }
         }
 
+        async function cargarSolicitudes() {
+            try {
+                const solicitudes = await api.getSolicitudes();
+                const container = document.getElementById('solicitudes-container');
+                const list = document.getElementById('solicitudes-list');
+
+                if (solicitudes.length > 0) {
+                    container.style.display = 'block';
+                    list.innerHTML = solicitudes.map(s => `
+                        <div class="card" style="border: 1px solid var(--warning);">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                <div style="flex:1;">
+                                    <div style="font-weight:700; font-size:1.05rem;">${s.nombre_completo}</div>
+                                    <div class="text-muted" style="font-size:.85rem; margin-bottom: 0.2rem;">DNI: ${s.dni} · 📞 ${s.telefono}</div>
+                                    <div style="font-size:.9rem;"><strong>Pide:</strong> ${fmt(s.monto_solicitado)} a ${s.plazo_meses_solicitado} meses</div>
+                                    <div style="font-size:.8rem; margin-top:0.2rem;" class="text-muted">Nota: ${s.direccion}</div>
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:.5rem;">
+                                    <button class="btn btn-success btn-sm" onclick="resolverSolicitud(${s.id}, 'aprobar')">Aprobar</button>
+                                    <button class="btn btn-danger btn-sm" style="background:transparent; color:var(--danger); border:1px solid var(--danger);" onclick="resolverSolicitud(${s.id}, 'rechazar')">Rechazar</button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Error cargando solicitudes', e);
+            }
+        }
+
+        async function resolverSolicitud(id, accion) {
+            if (!confirm(`¿Estás seguro de ${accion} esta solicitud?`)) return;
+            try {
+                const res = await api.resolverSolicitud(id, accion);
+                showToast(res.message);
+                cargarSolicitudes(); // reload list
+                cargarClientes();    // refresh client list
+            } catch (err) {
+                showToast(err.error || `Error al ${accion}`, 'error');
+            }
+        }
+
         cargarClientes();
+        cargarSolicitudes();
     </script>
 </body>
 

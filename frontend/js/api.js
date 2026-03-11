@@ -5,6 +5,48 @@
 const BASE_URL = 'http://localhost:3001/api';
 
 const api = {
+    // ── CONFIGURACION ─────────────────────────────
+    async getCapital() {
+        const res = await fetch(`${BASE_URL}/capital`);
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    async updateCapital(capital_base) {
+        const res = await fetch(`${BASE_URL}/capital`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ capital_base })
+        });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    async getReportes() {
+        const res = await fetch(`${BASE_URL}/reportes`);
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    async getTransacciones() {
+        const res = await fetch(`${BASE_URL}/transacciones`);
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+
+    // ── SOLICITUDES EXTERNAS ──────────────────────
+    async getSolicitudes() {
+        const res = await fetch(`${BASE_URL}/solicitudes`);
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+    async resolverSolicitud(id, accion) {
+        const res = await fetch(`${BASE_URL}/solicitudes/${id}/accion`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accion })
+        });
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+
     // ── USUARIOS ────────────────────────────────
     async getUsuarios(q = '') {
         const res = await fetch(`${BASE_URL}/usuarios?q=${encodeURIComponent(q)}`);
@@ -56,8 +98,12 @@ const api = {
     },
 
     // ── CUOTAS ────────────────────────────────
-    async pagarCuota(id) {
-        const res = await fetch(`${BASE_URL}/cuotas/${id}/pagar`, { method: 'PATCH' });
+    async pagarCuota(id, data = {}) {
+        const res = await fetch(`${BASE_URL}/cuotas/${id}/pagar`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
         if (!res.ok) throw await res.json();
         return res.json();
     },
@@ -71,6 +117,12 @@ const api = {
 
     async getCobrosVencidos() {
         const res = await fetch(`${BASE_URL}/cobros-vencidos`);
+        if (!res.ok) throw await res.json();
+        return res.json();
+    },
+
+    async getCarteraActiva() {
+        const res = await fetch(`${BASE_URL}/cartera-activa`);
         if (!res.ok) throw await res.json();
         return res.json();
     },

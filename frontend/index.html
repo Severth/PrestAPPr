@@ -4,130 +4,635 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PrestaPri - Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>PrestAPPr - Panel Ejecutivo</title>
+    <!-- Tailwind removed as requested -->
     <link rel="stylesheet" href="css/styles.css">
+    <script src="js/theme.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .flex {
+            display: flex;
+        }
+
+        .flex-col {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .align-center {
+            align-items: center;
+        }
+
+        .align-start {
+            align-items: flex-start;
+        }
+
+        .gap-1 {
+            gap: 0.5rem;
+        }
+
+        .gap-2 {
+            gap: 1rem;
+        }
+
+        .w-full {
+            width: 100%;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+    </style>
 </head>
 
 <body>
-
     <nav class="nav">
-        <span class="nav-brand">💰 PrestaPri</span>
+        <span class="nav-brand">💰 PrestAPPr Pro</span>
         <div class="nav-links">
-            <a href="index.html" class="nav-link active">Cobros</a>
-            <a href="clientes.html" class="nav-link">Clientes</a>
-            <a href="nuevo-credito.html" class="nav-link">+ Crédito</a>
+            <a href="index.html" class="nav-link active">Resumen Ejecutivo</a>
+            <a href="clientes.html" class="nav-link">Cartera de Clientes</a>
+            <a href="nuevo-credito.html" class="nav-link">+ Desembolsar Crédito</a>
+            <a href="solicitud.html" target="_blank" class="nav-link" style="color:var(--primary); font-weight:800;">🔗
+                Formulario Público</a>
+            <button id="theme-toggle" class="btn btn-sm"
+                style="background:transparent; color:inherit; border:none; box-shadow:none; font-size:1.4rem;"
+                onclick="toggleTheme()">🌙</button>
         </div>
+        <!-- Theme toggle visible only on mobile -->
+        <button id="theme-toggle-mobile" class="btn btn-sm"
+            style="background:transparent; color:inherit; border:none; box-shadow:none; font-size:1.4rem; display:none;"
+            onclick="toggleTheme()">🌙</button>
     </nav>
+    <style>
+        @media (max-width: 480px) {
+            #theme-toggle-mobile { display: block !important; }
+        }
+    </style>
 
     <div class="container">
-
-        <!-- Header -->
-        <div class="section-header" style="margin-bottom: 1.5rem;">
-            <div>
-                <h1 class="section-title">Cobros del Día</h1>
-                <p class="text-muted" id="fecha-hoy"></p>
+        <!-- Dashboard Global Stats -->
+        <div class="grid-3" style="margin-bottom:2rem;">
+            <div class="card" style="background: var(--nav-bg);">
+                <div class="text-muted" style="text-transform:uppercase; font-size:0.8rem; font-weight:700;">Capital
+                    Libre en Caja</div>
+                <div style="font-size:2.2rem; font-weight:800; margin:.2rem 0; color:var(--primary);"
+                    id="capital-base-display">...</div>
+                <button class="btn btn-outline btn-sm w-full mt-1" onclick="editarCapital()">Modificar Capital</button>
             </div>
-            <button class="btn btn-outline btn-sm" onclick="cargarVencidos()">Ver vencidos</button>
+
+            <div class="card" style="background: var(--primary-gradient); color: white; border:none;">
+                <div style="text-transform:uppercase; font-size:0.8rem; font-weight:700; opacity:0.9;">Capital en
+                    Préstamos (Calle)</div>
+                <div style="font-size:2.2rem; font-weight:800; margin:.2rem 0;" id="dinero-calle-display">...</div>
+                <div style="font-size:0.9rem; opacity:0.8;">Total prestado + Intereses por cobrar</div>
+            </div>
+
+            <div class="card" style="background: var(--success-gradient); color: white; border:none;">
+                <div style="text-transform:uppercase; font-size:0.8rem; font-weight:700; opacity:0.9;">Intereses Netos
+                    Ganados</div>
+                <div style="font-size:2.2rem; font-weight:800; margin:.2rem 0;" id="intereses-ganados-display">...</div>
+                <div style="font-size:0.9rem; opacity:0.8;">Retorno histórico de inversiones</div>
+            </div>
         </div>
 
-        <!-- Stats row -->
-        <div class="grid-2" style="gap:.75rem; margin-bottom:1.25rem;">
-            <div class="card" style="text-align:center; padding:1rem;">
-                <div style="font-size:1.75rem; font-weight:800; color:var(--primary);" id="total-hoy">—</div>
-                <div class="text-muted" style="font-size:.8rem;">Cuotas hoy</div>
+        <div class="grid-2" style="margin-bottom:2rem;">
+            <!-- Panel Izquierdo: Cobros Hoy, Vencidos y Gráfica -->
+            <div class="flex-col gap-2">
+                
+                <!-- MOROSOS -->
+                <div class="card" style="border-left: 4px solid var(--danger);">
+                    <div class="section-header" style="margin-bottom: 0;">
+                        <h2 class="section-title" style="font-size:1.3rem; color:var(--danger);">🚨 Atención Prioritaria (Morosos)</h2>
+                    </div>
+                    <div class="divider"></div>
+                    <div id="vencidos-container" style="max-height: 250px; overflow-y:auto; padding-right:0.5rem;">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-header" style="margin-bottom: 0;">
+                        <h2 class="section-title" style="font-size:1.3rem;">📅 Cobros de Hoy</h2>
+                    </div>
+                    <div class="divider"></div>
+                    <div id="cobros-container" style="max-height: 250px; overflow-y:auto; padding-right:0.5rem;">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <div class="card mt-2">
+                    <h2 class="section-title" style="font-size:1.3rem; margin-bottom:1rem;">Proporción de Capital vs
+                        Ganancia</h2>
+                    <div class="chart-container">
+                        <canvas id="balanceChart"></canvas>
+                    </div>
+                </div>
             </div>
-            <div class="card" style="text-align:center; padding:1rem;">
-                <div style="font-size:1.75rem; font-weight:800; color:var(--success);" id="monto-hoy">—</div>
-                <div class="text-muted" style="font-size:.8rem;">Monto total</div>
+
+            <!-- Panel Derecho: Cartera Activa y Transacciones -->
+            <div class="flex-col gap-2">
+                <!-- CARTERA ACTIVA -->
+                <div class="card" style="border-top: 4px solid var(--primary);">
+                    <div class="section-header" style="margin-bottom: 0;">
+                        <h2 class="section-title" style="font-size:1.3rem;">👥 Cartera Activa</h2>
+                    </div>
+                    <div class="divider"></div>
+                    <div id="cartera-container" style="max-height: 250px; overflow-y:auto; padding-right:0.5rem;">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2 class="section-title" style="font-size:1.2rem; margin-bottom:1rem;">📥 Últimos Ingresos (Global)</h2>
+                    <div style="overflow-x:auto;">
+                        <table class="modern-table" style="font-size:0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Cliente</th>
+                                    <th>Tipo</th>
+                                    <th>Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tx-body">
+                                <tr>
+                                    <td colspan="4" style="text-align:center;">
+                                        <div class="spinner" style="margin:1rem auto; width:15px; height:15px;"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Main list -->
-        <div id="cobros-container">
-            <div class="spinner"></div>
-        </div>
+    </div>
 
+    <!-- Modal Pago Avanzado -->
+    <div id="modal-pago-overlay"
+        style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:200; align-items:center; justify-content:center;"
+        onmousedown="cerrarModalPago(event)">
+        <div class="modal-content"
+            style="background:var(--card); border-radius:1.5rem; padding:2rem; width:100%; max-width:550px; border:1px solid var(--border); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); position:relative; z-index:201;">
+            <h2 style="font-size:1.4rem; font-weight:800; margin-bottom:1.5rem;">Registrar Recaudo</h2>
+            <form id="form-pago" class="space-y" onsubmit="enviarPago(event)">
+                <input type="hidden" id="pago_cuota_id">
+
+                <div class="form-group">
+                    <label class="label">Concepto de Recepción</label>
+                    <select id="pago_tipo" class="select" required style="font-weight:600;" onchange="toggleCustomCapital()">
+                        <option value="completo">Pago Completo (Capital + Interés)</option>
+                        <option value="interes">Solo Intereses (Alarga 1 mes el préstamo)</option>
+                        <option value="capital">Abono Personalizado (Se recalculará la deuda)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="group-capital-abonado" style="display:none; background: var(--bg); padding:1.2rem; border-radius:.75rem; border: 1px dashed var(--primary); margin-top:0.5rem;">
+                    <label class="label" style="color:var(--primary);">Abono Exacto a Capital *</label>
+                    <input type="text" id="pago_capital_abonado" class="input" style="background:var(--card); font-size:1.1rem; border:1px solid var(--border);" placeholder="Ej. 100.000" oninput="formatearMonedaModal(this)">
+                    <div class="text-muted" style="font-size:0.8rem; margin-top:0.5rem; line-height:1.4;">El cliente asumirá este abono directo a capital <strong>más</strong> los intereses correspondientes al mes. Las cuotas futuras se recalcularán automáticamente a la baja.</div>
+                </div>
+
+                <div class="grid-2 mt-1">
+                    <div class="form-group">
+                        <label class="label">Método de Ingreso</label>
+                        <select id="pago_metodo" class="select" required>
+                            <option value="Efectivo">Efectivo (Físico)</option>
+                            <option value="Transferencia">Transferencia a Cuenta</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="label">Responsable / Cobrador</label>
+                        <input type="text" id="pago_cobrador" class="input" placeholder="Nombre (Ej. Yo)">
+                    </div>
+                </div>
+
+                <div class="grid-2 mt-1">
+                    <div class="form-group">
+                        <label class="label">Cuenta Emisora (Cliente)</label>
+                        <input type="text" id="pago_origen" class="input" placeholder="Opcional">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">Cuenta Receptora (Nuestra)</label>
+                        <input type="text" id="pago_destino" class="input" placeholder="Opcional">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-success btn-block"
+                    style="margin-top:1.5rem; font-size:1.1rem; height:54px;" id="btn-submit-pago">Confirmar Ingreso a
+                    Caja</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Capital -->
+    <div id="modal-capital-overlay"
+        style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:200; align-items:center; justify-content:center;"
+        onclick="cerrarModalCapital(event)">
+        <div
+            style="background:var(--card); border-radius:1.5rem; padding:2rem; width:100%; max-width:400px; border:1px solid var(--border); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
+            <h2 style="font-size:1.4rem; font-weight:800; margin-bottom:1rem;">Modificar Capital Libre</h2>
+            <p class="text-muted" style="margin-bottom:1.5rem;">Ingresa el nuevo monto exacto disponible en caja para
+                realizar préstamos.</p>
+            <form id="form-capital" class="space-y" onsubmit="guardarCapital(event)">
+                <div class="form-group">
+                    <label class="label">Nuevo Capital Libre</label>
+                    <input type="text" id="input_nuevo_capital" class="input" placeholder="Ej. 5.000.000"
+                        oninput="formatearMonedaInput(this)" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block"
+                    style="margin-top:1.5rem; font-size:1.1rem; height:54px;" id="btn-submit-capital">Actualizar
+                    Capital</button>
+            </form>
+        </div>
     </div>
 
     <!-- Toast -->
     <div id="toast" class="toast"></div>
 
+    <!-- Bottom Navigation (Mobile) -->
+    <nav class="bottom-nav">
+        <div class="bottom-nav-inner">
+            <a href="index.html" class="bottom-nav-link active">
+                <span class="icon">📊</span>
+                <span>Resumen</span>
+            </a>
+            <a href="clientes.html" class="bottom-nav-link">
+                <span class="icon">👥</span>
+                <span>Clientes</span>
+            </a>
+            <a href="nuevo-credito.html" class="bottom-nav-link" style="width: auto;">
+                <div class="bottom-nav-fab">
+                    <span>+</span>
+                </div>
+            </a>
+            <a href="solicitud.html" target="_blank" class="bottom-nav-link">
+                <span class="icon">🔗</span>
+                <span>Público</span>
+            </a>
+        </div>
+    </nav>
+
     <script src="js/api.js"></script>
     <script>
         const fmt = (n) => '$' + parseFloat(n).toLocaleString('es-CO', { minimumFractionDigits: 2 });
+        let chartInstance = null;
 
-        document.getElementById('fecha-hoy').textContent = new Date().toLocaleDateString('es-CO', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-        });
 
         function showToast(msg, type = 'success') {
             const t = document.getElementById('toast');
             t.textContent = msg;
             t.className = `toast toast-${type} show`;
-            setTimeout(() => t.classList.remove('show'), 3000);
+            setTimeout(() => t.classList.remove('show'), 3500);
+        }
+
+        async function initDashboard() {
+            await cargarCapital();
+            cargarCobrosHoy();
+            cargarVencidosAuto();
+            cargarTransacciones();
+            cargarCarteraActiva();
+        }
+
+        async function cargarCapital() {
+            try {
+                const res = await api.getReportes();
+                const caja = res.capital_base || 0;
+                const calle = res.dinero_en_calle || 0;
+                const ganancias = res.interes_ganado || 0;
+
+                document.getElementById('capital-base-display').textContent = fmt(caja);
+                document.getElementById('dinero-calle-display').textContent = fmt(calle);
+                document.getElementById('intereses-ganados-display').textContent = fmt(ganancias);
+
+                actualizarGrafica(caja, calle, ganancias);
+            } catch (e) {
+                console.error("No se pudo cargar capital", e);
+            }
+        }
+
+        function actualizarGrafica(caja, calle, ganancia) {
+            const ctx = document.getElementById('balanceChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+
+            Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#64748b';
+            Chart.defaults.font.family = "'Outfit', sans-serif";
+
+            // Custom plugin to draw text in the center of the doughnut
+            const centerTextPlugin = {
+                id: 'centerText',
+                beforeDraw: function(chart) {
+                    if (chart.config.type !== 'doughnut') return;
+                    var width = chart.width,
+                        height = chart.height,
+                        ctx = chart.ctx;
+
+                    ctx.restore();
+                    var fontSize = (height / 114).toFixed(2);
+                    ctx.font = "800 " + fontSize + "em Outfit, sans-serif";
+                    ctx.textBaseline = "middle";
+
+                    var text = "Activos",
+                        textX = Math.round((width - ctx.measureText(text).width) / 2),
+                        textY = height / 2 - 10;
+                    
+                    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#1e293b';
+                    ctx.fillText(text, textX, textY);
+                    
+                    ctx.font = "600 " + (fontSize * 0.4).toFixed(2) + "em Outfit, sans-serif";
+                    var text2 = "Totales",
+                        text2X = Math.round((width - ctx.measureText(text2).width) / 2),
+                        text2Y = height / 2 + 15;
+                        
+                    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#64748b';
+                    ctx.fillText(text2, text2X, text2Y);
+                    
+                    ctx.save();
+                }
+            };
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Caja (Libre)', 'Calle (Préstamos)', 'Ganancias'],
+                    datasets: [{
+                        data: [caja, calle, ganancia],
+                        backgroundColor: [
+                            '#4f46e5', /* primary */
+                            '#f59e0b', /* warning */
+                            '#10b981'  /* success */
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 10,
+                        borderRadius: 5, // Softed edges for segments
+                    }]
+                },
+                plugins: [centerTextPlugin],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        animateScale: true,
+                        animateRotate: true,
+                        duration: 1200,
+                        easing: 'easeOutQuart'
+                    },
+                    plugins: {
+                        legend: { 
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { size: 14, family: "'Outfit', sans-serif" },
+                            bodyFont: { size: 14, weight: 'bold', family: "'Outfit', sans-serif" },
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(context.parsed);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '75%'
+                }
+            });
+        }
+
+        function editarCapital() {
+            document.getElementById('modal-capital-overlay').style.display = 'flex';
+            document.getElementById('input_nuevo_capital').value = '';
+            document.getElementById('input_nuevo_capital').focus();
+        }
+
+        function cerrarModalCapital(e) {
+            if (e && e.target.id !== 'modal-capital-overlay') return;
+            document.getElementById('modal-capital-overlay').style.display = 'none';
+        }
+
+        async function guardarCapital(e) {
+            e.preventDefault();
+            const inputVal = document.getElementById('input_nuevo_capital').value.replace(/\D/g, '');
+            if (!inputVal) return;
+
+            const btn = document.getElementById('btn-submit-capital');
+            btn.disabled = true;
+            btn.textContent = 'Actualizando...';
+
+            try {
+                await api.updateCapital(parseFloat(inputVal));
+                await cargarCapital();
+                showToast('✅ Capital libre actualizado');
+                cerrarModalCapital({ target: { id: 'modal-capital-overlay' } });
+            } catch (e) {
+                showToast('Error al actualizar capital', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Actualizar Capital';
+            }
+        }
+
+        function formatearMonedaInput(input) {
+            // Eliminar todo lo que no sea número
+            let valor = input.value.replace(/\D/g, '');
+            if (valor === '') {
+                input.value = '';
+                return;
+            }
+            // Formatear con puntos de miles
+            input.value = parseInt(valor, 10).toLocaleString('es-CO');
+        }
+
+        async function cargarCarteraActiva() {
+            try {
+                const cartera = await api.getCarteraActiva();
+                const container = document.getElementById('cartera-container');
+                if (cartera.length === 0) {
+                    container.innerHTML = `<div class="empty-state" style="padding:1rem;">No hay créditos activos en la calle.</div>`;
+                    return;
+                }
+
+                container.innerHTML = `<div class="space-y">${cartera.map(c => `
+                    <div style="padding:.75rem 0; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-weight:700; font-size:1rem;">${c.nombre_completo}</div>
+                            <div class="text-muted" style="font-size:.78rem;">Tasa: ${c.tasa_interes_mensual}% m. · Próx: ${c.proximo_vencimiento || 'N/A'}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-weight:800; color:var(--text);">${fmt(c.saldo_activo)}</div>
+                            <div class="text-muted" style="font-size:.75rem;">Deuda Pta.</div>
+                        </div>
+                    </div>
+                `).join('')}</div>`;
+            } catch (e) {
+                document.getElementById('cartera-container').innerHTML = `<div class="empty-state">Error cargando cartera</div>`;
+            }
+        }
+
+        async function cargarTransacciones() {
+            try {
+                const txs = await api.getTransacciones();
+                const tbody = document.getElementById('tx-body');
+                if (!txs || txs.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Sin ingresos recientes</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = txs.map(t => {
+                    const lblPago = t.tipo_pago === 'capital' || t.tipo_pago === 'Agregado_capital_extra' ? 'Abono Capital' : 
+                                   (t.tipo_pago === 'interes' ? 'Solo Interés' : 'Cuota');
+                    return `
+                        <tr>
+                            <td>${new Date(t.fecha_pago).toLocaleDateString()}</td>
+                            <td style="font-weight:600;">${t.nombre_completo}</td>
+                            <td><span style="font-size:0.75rem; font-weight:700; color:var(--text-muted)">${lblPago}</span></td>
+                            <td style="font-weight:800; color:var(--success);">${fmt(t.monto)}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (e) {
+                document.getElementById('tx-body').innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Error cargando transacciones</td></tr>`;
+            }
+        }
+
+        // --- functions existing unedited ---
+
+        async function cargarVencidosAuto() {
+            document.getElementById('vencidos-container').innerHTML = '<div class="spinner"></div>';
+            try {
+                const cobros = await api.getCobrosVencidos();
+                renderCobros(cobros, 'vencidos', 'vencidos-container');
+            } catch (e) {
+                document.getElementById('vencidos-container').innerHTML = `<div class="empty-state">Error de conexión</div>`;
+            }
         }
 
         async function cargarCobrosHoy() {
-            try {
-                const cobros = await api.getCobrosHoy();
-                renderCobros(cobros, 'hoy');
-            } catch (e) {
-                document.getElementById('cobros-container').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>No se pudo conectar al backend. ¿Está corriendo en puerto 3001?</p></div>`;
-            }
-        }
-
-        async function cargarVencidos() {
             document.getElementById('cobros-container').innerHTML = '<div class="spinner"></div>';
             try {
-                const cobros = await api.getCobrosVencidos();
-                renderCobros(cobros, 'vencidos');
+                const cobros = await api.getCobrosHoy();
+                renderCobros(cobros, 'hoy', 'cobros-container');
             } catch (e) {
-                showToast('Error al cargar vencidos', 'error');
+                document.getElementById('cobros-container').innerHTML = `<div class="empty-state">Error de conexión</div>`;
             }
         }
 
-        function renderCobros(cobros, tipo) {
-            const container = document.getElementById('cobros-container');
-            document.getElementById('total-hoy').textContent = cobros.length;
-            const total = cobros.reduce((s, c) => s + parseFloat(c.monto_cuota), 0);
-            document.getElementById('monto-hoy').textContent = fmt(total);
-
+        function renderCobros(cobros, tipo, containerId) {
+            const container = document.getElementById(containerId);
             if (cobros.length === 0) {
-                container.innerHTML = `<div class="empty-state"><div class="icon">🎉</div><p>${tipo === 'hoy' ? 'No hay cobros pendientes para hoy.' : 'No hay cuotas vencidas.'}</p></div>`;
+                container.innerHTML = `<div class="empty-state" style="padding: 2rem;"><div class="icon" style="font-size:2rem;">${tipo === 'hoy' ? '☕' : '🎉'}</div><p>${tipo === 'hoy' ? 'No hay rutas de cobro hoy.' : '¡Excelente! No hay morosos hoy.'}</p></div>`;
                 return;
             }
 
             container.innerHTML = `<div class="space-y">${cobros.map(c => `
-            <div class="card" id="card-${c.cuota_id}">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:.5rem;">
-                    <div style="flex:1;">
-                        <div style="font-weight:700; font-size:1rem;">${c.nombre_completo}</div>
-                        <div class="text-muted" style="font-size:.8rem;">Cuota #${c.numero_cuota} · Préstamo #${c.prestamo_id}</div>
-                        <div style="font-size:1.25rem; font-weight:800; color:var(--primary); margin:.25rem 0;">${fmt(c.monto_cuota)}</div>
-                        <div class="text-muted" style="font-size:.8rem;">Vence: ${c.fecha_vencimiento}</div>
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:.5rem; flex-shrink:0;">
-                        <button class="btn btn-success btn-sm" onclick="pagarCuota(${c.cuota_id})">✓ Pagado</button>
-                        <a href="${c.wa_link}" target="_blank" class="btn btn-sm" style="background:#25D366;color:white;">📲 WA</a>
+                <div class="card" id="card-${c.cuota_id}" style="padding:1rem; ${c.es_mora ? 'border-left: 4px solid var(--danger);' : 'border-left: 4px solid var(--primary);'} box-shadow:none;">
+                    <div class="flex justify-between align-start gap-1">
+                        <div class="flex-col">
+                            <div style="font-weight:700; font-size:1.05rem; ${c.es_mora ? 'color: var(--danger);' : ''}">
+                                ${c.nombre_completo}
+                                ${c.es_mora ? '<span class="badge badge-danger" style="margin-left:0.5rem; font-size: 0.65rem;">Mora</span>' : ''}
+                            </div>
+                            <div class="text-muted" style="font-size:.8rem; margin-top:.2rem;">Ruta: Préstamo #${c.prestamo_id} · Cuota ${c.numero_cuota}</div>
+                            <div style="font-size:1.3rem; font-weight:800; color:var(--text); margin:.4rem 0;">${fmt(c.monto_cuota)}</div>
+                            <div style="font-size:.8rem; color:${c.es_mora ? 'var(--danger)' : 'var(--text-muted)'}; font-weight:600;">🗓️ Vence: ${c.fecha_vencimiento}</div>
+                        </div>
+                        <div class="flex-col gap-1">
+                            <button class="btn btn-success btn-sm" onclick="abrirModalPago(${c.cuota_id})">📥 Pagar</button>
+                            <a href="${c.wa_link}" target="_blank" class="btn btn-sm" style="background:#25D366;color:white;text-decoration:none;">📲 Avisar</a>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `).join('')}</div>`;
+            `).join('')}</div>`;
         }
 
-        async function pagarCuota(id) {
-            try {
-                await api.pagarCuota(id);
-                document.getElementById(`card-${id}`).style.opacity = '0.4';
-                document.getElementById(`card-${id}`).style.pointerEvents = 'none';
-                showToast('✅ Cuota marcada como pagada');
-            } catch (e) {
-                showToast('Error al registrar pago', 'error');
+        function abrirModalPago(cuotaId) {
+            document.getElementById('pago_cuota_id').value = cuotaId;
+            document.getElementById('pago_tipo').value = 'completo';
+            document.getElementById('pago_capital_abonado').value = '';
+            toggleCustomCapital();
+            document.getElementById('modal-pago-overlay').style.display = 'flex';
+        }
+
+        function formatearMonedaModal(input) {
+            let valor = input.value.replace(/\D/g, '');
+            if (valor === '') {
+                input.value = '';
+                return;
+            }
+            input.value = parseInt(valor, 10).toLocaleString('es-CO');
+        }
+
+        function toggleCustomCapital() {
+            const tipo = document.getElementById('pago_tipo').value;
+            const group = document.getElementById('group-capital-abonado');
+            if (tipo === 'capital') {
+                group.style.display = 'block';
+                document.getElementById('pago_capital_abonado').required = true;
+                setTimeout(() => document.getElementById('pago_capital_abonado').focus(), 50);
+            } else {
+                group.style.display = 'none';
+                document.getElementById('pago_capital_abonado').required = false;
             }
         }
 
-        cargarCobrosHoy();
+        function cerrarModalPago(e) {
+            // Permitir clicks normales en el contenido, solo cerrar si toca el gris (el overlay contenedor)
+            if (e && e.target.id !== 'modal-pago-overlay') return;
+            document.getElementById('modal-pago-overlay').style.display = 'none';
+        }
+
+        async function enviarPago(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit-pago');
+            btn.disabled = true;
+            btn.textContent = 'Procesando...';
+
+            const id = document.getElementById('pago_cuota_id').value;
+            const capitalStr = document.getElementById('pago_capital_abonado').value.replace(/\D/g, '');
+            const data = {
+                tipo: document.getElementById('pago_tipo').value,
+                metodo: document.getElementById('pago_metodo').value,
+                cuenta_origen: document.getElementById('pago_origen').value,
+                cuenta_destino: document.getElementById('pago_destino').value,
+                cobrador: document.getElementById('pago_cobrador').value,
+                capital_abonado: capitalStr ? parseInt(capitalStr, 10) : null
+            };
+
+            try {
+                await api.pagarCuota(id, data);
+                if (document.getElementById(`card-${id}`)) {
+                    document.getElementById(`card-${id}`).style.display = 'none';
+                }
+                showToast('✅ Ingreso a caja exitoso');
+                cerrarModalPago({ target: { id: 'modal-pago-overlay' } });
+                initDashboard();
+            } catch (e) {
+                showToast('Error al registrar recaudo', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Confirmar Ingreso a Caja';
+            }
+        }
+
+        initDashboard();
     </script>
 </body>
 

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitud de Préstamo - PrestAPPr</title>
+    <!-- Tailwind Custom CSS Used -->
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/theme.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .auth-card {
+            background: var(--card);
+            color: var(--text);
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .step-dots {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--border);
+            transition: all 0.3s;
+        }
+
+        .dot.active {
+            background: var(--primary);
+            transform: scale(1.2);
+        }
+
+        .step {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .step.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Theme Toggle at the top right -->
+    <button id="theme-toggle" class="btn btn-sm"
+        style="position:fixed; top:1rem; right:1rem; background:rgba(255,255,255,0.2); color:white; border:none; box-shadow:none; font-size:1.5rem; z-index: 1000;"
+        onclick="toggleTheme()">🌙</button>
+
+    <div class="auth-card">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">💸</div>
+            <h1 style="font-size: 1.5rem; font-weight: 800; color: var(--text);">Solicita tu Préstamo</h1>
+            <p class="text-muted" style="margin-top: 0.5rem;">Completa el formulario y te contactaremos a la brevedad.
+            </p>
+        </div>
+
+        <div class="step-dots" id="dots">
+            <div class="dot active"></div>
+            <div class="dot"></div>
+        </div>
+
+        <form id="solicitud-form" onsubmit="enviarSolicitud(event)">
+            <!-- Paso 1: Datos Personales -->
+            <div class="step active" id="step-1">
+                <div class="space-y">
+                    <div class="form-group">
+                        <label class="label">Nombre Completo *</label>
+                        <input type="text" name="nombre_completo" class="input" required placeholder="Ej. Juan Pérez">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">DNI / Cédula *</label>
+                        <input type="text" name="dni" class="input" required placeholder="Ingresa tu documento">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">Teléfono (WhatsApp) *</label>
+                        <input type="tel" name="telefono" class="input" required placeholder="Ej. 3001234567">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary btn-block" style="margin-top: 2rem;"
+                    onclick="siguientePaso()">Continuar ➔</button>
+            </div>
+
+            <!-- Paso 2: Detalles del Préstamo -->
+            <div class="step" id="step-2">
+                <div class="space-y">
+                    <div class="form-group">
+                        <label class="label">Monto Solicitado *</label>
+                        <input type="number" name="monto_solicitado" class="input" required placeholder="Ej. 1000"
+                            min="10">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">Plazo Estimado (Meses) *</label>
+                        <input type="number" name="plazo_meses_solicitado" class="input" required placeholder="Ej. 6"
+                            min="1" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">Dirección / Notas Adicionales</label>
+                        <textarea name="direccion" class="input" rows="3"
+                            placeholder="Tu dirección o algún comentario..."></textarea>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                    <button type="button" class="btn btn-outline" style="flex: 1;" onclick="pasoAnterior()">🡠
+                        Volver</button>
+                    <button type="submit" class="btn btn-success" style="flex: 1;" id="btn-submit">Enviar Solicitud
+                        ✓</button>
+                </div>
+            </div>
+        </form>
+
+        <div id="success-msg" style="display: none; text-align: center; padding: 2rem 0;">
+            <div style="font-size: 4rem; color: var(--success); margin-bottom: 1rem;">✅</div>
+            <h2 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.5rem;">¡Solicitud Enviada!</h2>
+            <p class="text-muted">Hemos recibido tu solicitud. Nuestro equipo la revisará y se pondrá en contacto
+                contigo muy pronto por WhatsApp.</p>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="js/api.js"></script>
+    <script>
+        function showToast(msg, type = 'success') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast toast-${type} show`;
+            setTimeout(() => t.classList.remove('show'), 4000);
+        }
+
+        function siguientePaso() {
+            const step1Inputs = document.querySelectorAll('#step-1 input[required]');
+            let valid = true;
+            step1Inputs.forEach(input => {
+                if (!input.checkValidity()) {
+                    input.reportValidity();
+                    valid = false;
+                }
+            });
+
+            if (valid) {
+                document.getElementById('step-1').classList.remove('active');
+                document.getElementById('step-2').classList.add('active');
+                document.querySelectorAll('.dot')[0].classList.remove('active');
+                document.querySelectorAll('.dot')[1].classList.add('active');
+            }
+        }
+
+        function pasoAnterior() {
+            document.getElementById('step-2').classList.remove('active');
+            document.getElementById('step-1').classList.add('active');
+            document.querySelectorAll('.dot')[1].classList.remove('active');
+            document.querySelectorAll('.dot')[0].classList.add('active');
+        }
+
+        async function enviarSolicitud(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+
+            const fd = new FormData(e.target);
+            const data = Object.fromEntries(fd.entries());
+
+            try {
+                // Hacemos el request a la nueva API de solicitudes
+                // Como aun no está la API, la llamaremos api.crearSolicitud()
+                await fetch('http://localhost:3001/api/solicitudes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                }).then(async res => {
+                    if (!res.ok) throw await res.json();
+                });
+
+                document.getElementById('solicitud-form').style.display = 'none';
+                document.getElementById('dots').style.display = 'none';
+                document.getElementById('success-msg').style.display = 'block';
+            } catch (err) {
+                showToast(err.error || 'Error al enviar solicitud', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Enviar Solicitud ✓';
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -5,14 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PrestAPPr - Nuevo Crédito</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind Custom CSS Used -->
     <link rel="stylesheet" href="css/styles.css">
     <style>
         .autocomplete-list {
             position: absolute;
             z-index: 50;
             width: 100%;
-            background: white;
+            background: var(--card);
             border: 2px solid var(--primary);
             border-top: none;
             border-radius: 0 0 .75rem .75rem;
@@ -29,7 +29,7 @@
         }
 
         .autocomplete-item:hover {
-            background: #f0f0ff;
+            background: var(--bg);
         }
 
         .resumen-box {
@@ -57,6 +57,7 @@
             display: block;
         }
     </style>
+    <script src="js/theme.js"></script>
 </head>
 
 <body>
@@ -67,6 +68,9 @@
             <a href="index.html" class="nav-link">Cobros</a>
             <a href="clientes.html" class="nav-link">Clientes</a>
             <a href="nuevo-credito.html" class="nav-link active">+ Crédito</a>
+            <button id="theme-toggle" class="btn btn-sm"
+                style="background:transparent; color:inherit; padding: 0.3rem; border:none; box-shadow:none; font-size:1.2rem;"
+                onclick="toggleTheme()">🌙</button>
         </div>
     </nav>
 
@@ -96,19 +100,34 @@
                 <div class="space-y">
                     <div class="form-group">
                         <label class="label">Monto del Préstamo *</label>
-                        <input type="number" id="monto" name="monto" class="input" placeholder="0.00" min="1"
-                            step="0.01" oninput="calcularResumen()" required>
+                        <input type="text" id="monto_input" class="input" placeholder="Ej. 1.000.000"
+                            oninput="formatearMontoCredito(this)" required>
+                        <input type="hidden" id="monto" name="monto" required>
                     </div>
                     <div class="grid-2">
                         <div class="form-group">
-                            <label class="label">Tasa Anual (%)</label>
-                            <input type="number" id="tasa" name="tasa_interes_anual" class="input" value="12" min="0.1"
+                            <label class="label">Tasa de Interés Mensual (%)</label>
+                            <input type="number" id="tasa" name="tasa_interes_mensual" class="input" value="5" min="0.1"
                                 step="0.1" oninput="calcularResumen()" required>
                         </div>
                         <div class="form-group">
                             <label class="label">Plazo (meses)</label>
                             <input type="number" id="plazo" name="plazo_meses" class="input" value="12" min="1"
                                 max="360" oninput="calcularResumen()" required>
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="label">Médoto de Desembolso</label>
+                            <select id="metodo_desembolso" name="metodo_desembolso" class="select" required>
+                                <option value="Efectivo">Efectivo Físico</option>
+                                <option value="Transferencia">Transferencia Bancaria</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="label">Cuenta de Origen (Tuya)</label>
+                            <input type="text" id="cuenta_origen" name="cuenta_origen" class="input"
+                                placeholder="Ej. Bancolombia">
                         </div>
                     </div>
                     <div class="form-group">
@@ -199,28 +218,44 @@
             }
         });
 
+        function formatearMontoCredito(input) {
+            let valor = input.value.replace(/\D/g, '');
+            if (valor === '') {
+                input.value = '';
+                document.getElementById('monto').value = '';
+                document.getElementById('resumen-box').style.display = 'none';
+                return;
+            }
+            input.value = parseInt(valor, 10).toLocaleString('es-CO');
+            document.getElementById('monto').value = valor;
+            calcularResumen();
+        }
+
         let calcTimer;
         function calcularResumen() {
             const monto = parseFloat(document.getElementById('monto').value);
             const tasa = parseFloat(document.getElementById('tasa').value);
             const plazo = parseInt(document.getElementById('plazo').value);
 
-            if (!monto || !tasa || !plazo) return;
+            if (!monto || !tasa || !plazo) {
+                document.getElementById('resumen-box').style.display = 'none';
+                return;
+            }
 
             clearTimeout(calcTimer);
             calcTimer = setTimeout(async () => {
                 try {
                     const res = await api.calcular(monto, tasa, plazo);
-                    document.getElementById('r-cuota').textContent = fmt(res.cuotaMensual);
-                    document.getElementById('r-intereses').textContent = fmt(res.totalIntereses);
+                    document.getElementById('r-cuota').textContent = fmt(Math.round(res.cuotaMensual));
+                    document.getElementById('r-intereses').textContent = fmt(Math.round(res.totalIntereses));
                     document.getElementById('resumen-box').style.display = 'block';
                 } catch (e) {
                     // Fallback local calculation
-                    const i = (tasa / 100) / 12;
+                    const i = tasa / 100;
                     const n = plazo;
                     const cuota = monto * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
-                    document.getElementById('r-cuota').textContent = fmt(cuota);
-                    document.getElementById('r-intereses').textContent = fmt(cuota * n - monto);
+                    document.getElementById('r-cuota').textContent = fmt(Math.round(cuota));
+                    document.getElementById('r-intereses').textContent = fmt(Math.round(cuota * n - monto));
                     document.getElementById('resumen-box').style.display = 'block';
                 }
             }, 400);
@@ -238,10 +273,12 @@
             const fd = new FormData(e.target);
             const data = {
                 usuario_id: parseInt(fd.get('usuario_id')),
-                monto: parseFloat(fd.get('monto')),
-                tasa_interes_anual: parseFloat(fd.get('tasa_interes_anual')),
+                monto: parseFloat(document.getElementById('monto').value),
+                tasa_interes_mensual: parseFloat(fd.get('tasa_interes_mensual')),
                 plazo_meses: parseInt(fd.get('plazo_meses')),
-                fecha_inicio: fd.get('fecha_inicio')
+                fecha_inicio: fd.get('fecha_inicio'),
+                metodo_desembolso: fd.get('metodo_desembolso'),
+                cuenta_origen: fd.get('cuenta_origen')
             };
 
             try {

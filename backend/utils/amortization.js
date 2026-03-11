@@ -2,8 +2,8 @@
  * Amortización Francesa
  * A = P * [i(1+i)^n] / [(1+i)^n - 1]
  */
-function calculateAmortization(monto, tasaAnual, plazoMeses, fechaInicio) {
-    const i = (tasaAnual / 100) / 12;
+function calculateAmortization(monto, tasaMensual, plazoMeses, fechaInicio) {
+    const i = tasaMensual / 100;
     const n = plazoMeses;
     const P = parseFloat(monto);
 
@@ -34,8 +34,8 @@ function calculateAmortization(monto, tasaAnual, plazoMeses, fechaInicio) {
     return planPagos;
 }
 
-function calcularResumen(monto, tasaAnual, plazoMeses) {
-    const i = (tasaAnual / 100) / 12;
+function calcularResumen(monto, tasaMensual, plazoMeses) {
+    const i = tasaMensual / 100;
     const n = plazoMeses;
     const P = parseFloat(monto);
 
