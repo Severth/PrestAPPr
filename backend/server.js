@@ -23,7 +23,10 @@ const authenticateToken = (req, res, next) => {
     if (!token) return res.status(401).json({ error: 'Acceso denegado. Token no proporcionado.' });
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.status(403).json({ error: 'Token inválido o expirado.' });
+        if (err) {
+            console.error('JWT Verification Error:', err.message);
+            return res.status(403).json({ error: 'Token inválido o expirado.' });
+        }
         req.user = user;
         next();
     });
@@ -708,6 +711,8 @@ app.get('/api/distribucion-cuentas', authenticateToken, async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`\n🚀 PrestAPPr Backend ejecutándose en http://localhost:${PORT}`);
-    console.log(`   API disponible en http://localhost:${PORT}/api\n`);
+    console.log(`\n🚀 PrestAPPr Backend ejecutándose en el puerto ${PORT}`);
+    if (JWT_SECRET === 'fallback-secret-key') {
+        console.warn('⚠️  ADVERTENCIA: JWT_SECRET está usando la clave de respaldo. Asegúrate de configurar JWT_SECRET en las variables de entorno de Railway.');
+    }
 });
