@@ -60,6 +60,14 @@ app.post('/api/login', async (req, res) => {
 // Initialize Schema
 db.initSchema();
 
+// GET /api - API Status
+app.get('/api', (req, res) => {
+    res.json({
+        status: "API funcionando",
+        app: "PrestAPPr"
+    });
+});
+
 // ─────────────────────────────────────────────
 // CONFIGURACIÓN (CAPITAL BASE)
 // ─────────────────────────────────────────────
