@@ -2,7 +2,7 @@
  * api.js - Módulo central de peticiones al backend de PrestAPPr
  * Cambia BASE_URL si tu backend corre en otro puerto o servidor.
  */
-const BASE_URL = 'http://localhost:3001/api';
+const BASE_URL = 'https://prestappr-production.up.railway.app/api';
 
 const api = {
     // ── CONFIGURACION ─────────────────────────────
