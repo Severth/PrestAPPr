@@ -175,3 +175,6 @@ const api = {
         return res.json();
     }
 };
+
+// Asegurar que el objeto api esté disponible globalmente para evitar conflictos de scope
+window.api = api;
