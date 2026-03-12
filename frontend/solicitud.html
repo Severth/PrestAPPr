@@ -194,14 +194,7 @@
 
             try {
                 // Hacemos el request a la nueva API de solicitudes
-                // Como aun no está la API, la llamaremos api.crearSolicitud()
-                await fetch('http://localhost:3001/api/solicitudes', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                }).then(async res => {
-                    if (!res.ok) throw await res.json();
-                });
+                await api.crearSolicitud(data);
 
                 document.getElementById('solicitud-form').style.display = 'none';
                 document.getElementById('dots').style.display = 'none';

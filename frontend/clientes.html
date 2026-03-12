@@ -8,6 +8,11 @@
     <!-- Tailwind Custom CSS Used -->
     <link rel="stylesheet" href="css/styles.css">
     <script src="js/theme.js"></script>
+    <script>
+        if (!localStorage.getItem('token')) {
+            window.location.href = 'login.html';
+        }
+    </script>
 </head>
 
 <body>
@@ -18,6 +23,7 @@
             <a href="index.html" class="nav-link">Cobros</a>
             <a href="clientes.html" class="nav-link active">Clientes</a>
             <a href="nuevo-credito.html" class="nav-link">+ Crédito</a>
+            <button class="nav-link" onclick="api.logout()" style="background:transparent; border:none; cursor:pointer; color:var(--danger); font-weight:700;"> Salir 🚪</button>
             <button id="theme-toggle" class="btn btn-sm"
                 style="background:transparent; color:inherit; padding: 0.3rem; border:none; box-shadow:none; font-size:1.2rem;"
                 onclick="toggleTheme()">🌙</button>

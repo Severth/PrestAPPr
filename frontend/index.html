@@ -8,6 +8,12 @@
     <meta name="description" content="Panel ejecutivo de gestión de préstamos y cobranzas PrestAPPr">
     <link rel="stylesheet" href="css/styles.css">
     <script src="js/theme.js"></script>
+    <script>
+        // Auth check - immediately redirect if no token
+        if (!localStorage.getItem('token')) {
+            window.location.href = 'login.html';
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         /* ── Inline helpers ── */
@@ -273,6 +279,7 @@
             <a href="nuevo-credito.html" class="nav-link">+ Desembolsar</a>
             <a href="solicitud.html" target="_blank" class="nav-link" style="color:var(--primary); font-weight:800;">🔗
                 Formulario Público</a>
+            <button class="nav-link" onclick="api.logout()" style="background:transparent; border:none; cursor:pointer; color:var(--danger); font-weight:700;"> Salir 🚪</button>
             <button id="theme-toggle" class="btn btn-sm"
                 style="background:transparent;color:inherit;border:none;box-shadow:none;font-size:1.4rem;"
                 onclick="toggleTheme()">🌙</button>
@@ -670,7 +677,7 @@
         /* ══ STAT CARDS ══ */
         async function cargarStats() {
             try {
-                const s = await fetch(`http://localhost:3001/api/dashboard-stats?periodo=${periodoActual}`).then(r => r.json());
+                const s = await api.getDashboardStats(periodoActual);
 
                 document.getElementById('s-capital-libre').textContent = fmt(s.capital_libre);
                 document.getElementById('s-capital-prestado').textContent = fmt(s.capital_prestado);
@@ -765,7 +772,7 @@
         /* ══ DONUT CHART: CUENTAS ══ */
         async function cargarDistribucionCuentas() {
             try {
-                const b = await fetch('http://localhost:3001/api/distribucion-cuentas').then(r => r.json());
+                const b = await api.getDistribucionCuentas();
                 const ctx = document.getElementById('accountsChart').getContext('2d');
                 if (accountsChartInstance) accountsChartInstance.destroy();
 
@@ -869,7 +876,7 @@
         async function cargarActividadReciente() {
             const container = document.getElementById('actividad-container');
             try {
-                const events = await fetch('http://localhost:3001/api/actividad-reciente').then(r => r.json());
+                const events = await api.getActividadReciente();
                 if (!events.length) {
                     container.innerHTML = `<div class="empty-state" style="padding:2rem;">Sin actividad reciente</div>`;
                     return;
@@ -962,7 +969,7 @@
         async function cargarTablaActiva() {
             const tbody = document.getElementById('tabla-prestamos-body');
             try {
-                dataPrestamosOriginal = await fetch('http://localhost:3001/api/prestamos-tabla').then(r => r.json());
+                dataPrestamosOriginal = await api.getPrestamosTabla();
                 renderTablaPrestamos(dataPrestamosOriginal);
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--danger);">Error cargando préstamos</td></tr>`;
