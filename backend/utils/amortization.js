@@ -44,9 +44,9 @@ function calcularResumen(monto, tasaMensual, plazoMeses) {
     const totalIntereses = totalPagar - P;
 
     return {
-        cuotaMensual: parseFloat(cuotaMensual.toFixed(2)),
-        totalPagar: parseFloat(totalPagar.toFixed(2)),
-        totalIntereses: parseFloat(totalIntereses.toFixed(2))
+        cuota_mensual: parseFloat(cuotaMensual.toFixed(2)),
+        monto_total: parseFloat(totalPagar.toFixed(2)),
+        interes_total: parseFloat(totalIntereses.toFixed(2))
     };
 }
 

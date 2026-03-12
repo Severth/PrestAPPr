@@ -114,13 +114,7 @@
                         <div class="grid-2 mt-1">
                             <div class="form-group">
                                 <label class="label">Plazo (Meses)</label>
-                                <select id="plazo" class="select" onchange="recalcular()">
-                                    <option value="1">1 Mes</option>
-                                    <option value="2">2 Meses</option>
-                                    <option value="3">3 Meses</option>
-                                    <option value="6">6 Meses</option>
-                                    <option value="12">12 Meses</option>
-                                </select>
+                                <input type="number" id="plazo" class="input" value="1" min="1" step="1" required oninput="recalcular()">
                             </div>
                             <div class="form-group">
                                 <label class="label">Método Desembolso</label>
@@ -194,11 +188,9 @@
                 return;
             }
             try {
-                const users = await api.getUsers();
-                const filtered = users.filter(u => 
-                    u.nombre_completo.toLowerCase().includes(q.toLowerCase()) || 
-                    u.cedula.includes(q)
-                ).slice(0, 5);
+                // api.getUsuarios(q) already returns filtered result from backend
+                const users = await api.getUsuarios(q);
+                const filtered = users.slice(0, 5);
 
                 if (!filtered.length) {
                     container.innerHTML = '<div class="empty-state" style="padding:1rem;">❌ No se encontraron clientes.</div>';
@@ -210,7 +202,7 @@
                         <div style="width:32px; height:32px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.8rem; color:white;">👤</div>
                         <div style="flex:1;">
                             <div style="font-weight:700; font-size:0.95rem;">${u.nombre_completo}</div>
-                            <div class="text-muted" style="font-size:0.75rem;">CC: ${u.cedula}</div>
+                            <div class="text-muted" style="font-size:0.75rem;">CC: ${u.dni}</div>
                         </div>
                     </div>
                 `).join('');
@@ -240,7 +232,7 @@
             if (!monto || !tasa || !plazo) return;
 
             try {
-                const res = await api.calcularResumen(monto, tasa, plazo);
+                const res = await api.calcular(monto, tasa, plazo);
                 resInteres.textContent = fmt(res.interes_total);
                 resTotal.textContent   = fmt(res.monto_total);
                 resCuota.textContent   = fmt(res.cuota_mensual);
@@ -267,7 +259,7 @@
             };
 
             try {
-                const res = await api.createPrestamo(data);
+                const res = await api.crearPrestamo(data);
                 showToast('🚀 Crédito desembolsado con éxito');
                 setTimeout(() => window.location.href = `prestamo.html?id=${res.id}`, 1500);
             } catch (err) {
@@ -275,6 +267,26 @@
                 btn.disabled = false; btn.textContent = 'Desembolsar Crédito';
             }
         }
+
+        // Inicialización al cargar
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const uid = params.get('usuario_id');
+            const uname = params.get('nombre');
+            if (uid && uname) {
+                document.getElementById('usuario_id').value = uid;
+                document.getElementById('user-search').value = uname;
+                document.getElementById('user-results').innerHTML = `
+                    <div class="user-result-item selected">
+                        <div style="width:32px; height:32px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.8rem; color:white;">👤</div>
+                        <div style="flex:1;">
+                            <div style="font-weight:700; font-size:0.95rem;">${uname}</div>
+                            <div class="text-muted" style="font-size:0.75rem;">CC: Seleccionado del perfil</div>
+                        </div>
+                    </div>
+                `;
+            }
+        };
     </script>
 </body>
 </html>
