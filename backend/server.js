@@ -2,15 +2,57 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const db = require('./db');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { calculateAmortization, calcularResumen } = require('./utils/amortization');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
 
 // CORS: allow frontend to call this API
 app.use(cors({ origin: '*' }));
 app.use(bodyParser.json());
+
+// Middleware to protect routes
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.status(401).json({ error: 'Acceso denegado. Token no proporcionado.' });
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ error: 'Token inválido o expirado.' });
+        req.user = user;
+        next();
+    });
+};
+
+// ─────────────────────────────────────────────
+// AUTENTICACIÓN
+// ─────────────────────────────────────────────
+
+// POST /api/login
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+
+    try {
+        const result = await db.query('SELECT * FROM admins WHERE email = $1', [email]);
+        const admin = result.rows[0];
+
+        if (!admin) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+        const validPassword = await bcrypt.compare(password, admin.password_hash);
+        if (!validPassword) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+        const token = jwt.sign({ id: admin.id, email: admin.email }, JWT_SECRET, { expiresIn: '8h' });
+        res.json({ token, user: { email: admin.email } });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // Initialize Schema
 db.initSchema();
@@ -20,7 +62,7 @@ db.initSchema();
 // ─────────────────────────────────────────────
 
 // GET /api/capital
-app.get('/api/capital', async (req, res) => {
+app.get('/api/capital', authenticateToken, async (req, res) => {
     try {
         const result = await db.query('SELECT capital_base FROM configuracion WHERE id = 1');
         res.json({ capital_base: result.rows[0] ? result.rows[0].capital_base : 0 });
@@ -30,7 +72,7 @@ app.get('/api/capital', async (req, res) => {
 });
 
 // PUT /api/capital
-app.put('/api/capital', async (req, res) => {
+app.put('/api/capital', authenticateToken, async (req, res) => {
     const { capital_base } = req.body;
     try {
         await db.query('UPDATE configuracion SET capital_base = $1 WHERE id = 1', [capital_base]);
@@ -45,7 +87,7 @@ app.put('/api/capital', async (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/usuarios - List all users
-app.get('/api/usuarios', async (req, res) => {
+app.get('/api/usuarios', authenticateToken, async (req, res) => {
     const search = req.query.q ? `%${req.query.q}%` : '%';
     const sql = `
         SELECT u.*, 
@@ -63,7 +105,7 @@ app.get('/api/usuarios', async (req, res) => {
 });
 
 // GET /api/usuarios/:id - Get user with their loans
-app.get('/api/usuarios/:id', async (req, res) => {
+app.get('/api/usuarios/:id', authenticateToken, async (req, res) => {
     try {
         const userRes = await db.query('SELECT * FROM usuarios WHERE id = $1', [req.params.id]);
         const usuario = userRes.rows[0];
@@ -77,7 +119,7 @@ app.get('/api/usuarios/:id', async (req, res) => {
 });
 
 // POST /api/usuarios - Create user
-app.post('/api/usuarios', async (req, res) => {
+app.post('/api/usuarios', authenticateToken, async (req, res) => {
     const { nombre_completo, dni, telefono, correo, direccion } = req.body;
     if (!nombre_completo || !dni || !telefono) {
         return res.status(400).json({ error: 'Nombre, DNI y Teléfono son obligatorios' });
@@ -92,7 +134,7 @@ app.post('/api/usuarios', async (req, res) => {
 });
 
 // PUT /api/usuarios/:id - Update user
-app.put('/api/usuarios/:id', async (req, res) => {
+app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
     const { nombre_completo, telefono, correo, direccion } = req.body;
     const sql = `UPDATE usuarios SET nombre_completo=$1, telefono=$2, correo=$3, direccion=$4 WHERE id=$5`;
     try {
@@ -108,7 +150,7 @@ app.put('/api/usuarios/:id', async (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/solicitudes - List pending requests
-app.get('/api/solicitudes', async (req, res) => {
+app.get('/api/solicitudes', authenticateToken, async (req, res) => {
     try {
         const result = await db.query(`SELECT * FROM usuarios WHERE estado = 'Pendiente' ORDER BY created_at DESC`);
         res.json(result.rows);
@@ -138,7 +180,7 @@ app.post('/api/solicitudes', async (req, res) => {
 });
 
 // POST /api/solicitudes/:id/accion - Approve or Reject request
-app.post('/api/solicitudes/:id/accion', async (req, res) => {
+app.post('/api/solicitudes/:id/accion', authenticateToken, async (req, res) => {
     const { accion } = req.body;
     const id = req.params.id;
 
@@ -162,7 +204,7 @@ app.post('/api/solicitudes/:id/accion', async (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/prestamos/:id - Get loan with all installments
-app.get('/api/prestamos/:id', async (req, res) => {
+app.get('/api/prestamos/:id', authenticateToken, async (req, res) => {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: 'ID de préstamo inválido' });
 
@@ -184,7 +226,7 @@ app.get('/api/prestamos/:id', async (req, res) => {
 });
 
 // POST /api/prestamos - Create loan
-app.post('/api/prestamos', async (req, res) => {
+app.post('/api/prestamos', authenticateToken, async (req, res) => {
     let { usuario_id, monto, tasa_interes_mensual, plazo_meses, fecha_inicio, metodo_desembolso, cuenta_origen } = req.body;
     
     // Default fecha_inicio to today if not provided
@@ -232,7 +274,7 @@ app.post('/api/prestamos', async (req, res) => {
 });
 
 // PUT /api/prestamos/:id/estado - Update loan status
-app.put('/api/prestamos/:id/estado', async (req, res) => {
+app.put('/api/prestamos/:id/estado', authenticateToken, async (req, res) => {
     const { estado } = req.body;
     try {
         await db.query('UPDATE prestamos SET estado=$1 WHERE id=$2', [estado, req.params.id]);
@@ -247,7 +289,7 @@ app.put('/api/prestamos/:id/estado', async (req, res) => {
 // ─────────────────────────────────────────────
 
 // PATCH /api/cuotas/:id/pagar - Mark installment as paid or partial payment
-app.patch('/api/cuotas/:id/pagar', async (req, res) => {
+app.patch('/api/cuotas/:id/pagar', authenticateToken, async (req, res) => {
     const { tipo, metodo, cuenta_origen, cuenta_destino, cobrador, capital_abonado } = req.body;
     // tipo: 'completo', 'interes', 'capital' (abono extra)
 
@@ -363,7 +405,7 @@ async function checkFinalizacion(prestamo_id) {
 // ─────────────────────────────────────────────
 
 // GET /api/cobros-dia - Today's pending installments
-app.get('/api/cobros-dia', async (req, res) => {
+app.get('/api/cobros-dia', authenticateToken, async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const sql = `
         SELECT c.id as cuota_id, c.numero_cuota, c.fecha_vencimiento, c.monto_cuota, c.estado,
@@ -392,7 +434,7 @@ app.get('/api/cobros-dia', async (req, res) => {
 });
 
 // GET /api/cobros-vencidos - Overdue installments
-app.get('/api/cobros-vencidos', async (req, res) => {
+app.get('/api/cobros-vencidos', authenticateToken, async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const sql = `
         SELECT c.id as cuota_id, c.numero_cuota, c.fecha_vencimiento, c.monto_cuota,
@@ -421,7 +463,7 @@ app.get('/api/cobros-vencidos', async (req, res) => {
 });
 
 // GET /api/cartera-activa - All active loans mapping
-app.get('/api/cartera-activa', async (req, res) => {
+app.get('/api/cartera-activa', authenticateToken, async (req, res) => {
     const sql = `
         SELECT u.id as usuario_id, u.nombre_completo, u.telefono,
                p.id as prestamo_id, p.monto, p.fecha_inicio, p.tasa_interes_mensual,
@@ -446,7 +488,7 @@ app.get('/api/cartera-activa', async (req, res) => {
 });
 
 // GET /api/transacciones - Latest Payments
-app.get('/api/transacciones', async (req, res) => {
+app.get('/api/transacciones', authenticateToken, async (req, res) => {
     const sql = `
         SELECT c.id, c.monto_cuota as monto, c.tipo_pago, c.metodo_pago, c.fecha_pago, c.cuenta_destino,
                p.id as prestamo_id, u.nombre_completo 
@@ -465,7 +507,7 @@ app.get('/api/transacciones', async (req, res) => {
 });
 
 // GET /api/reportes - General Dashboard statistics
-app.get('/api/reportes', async (req, res) => {
+app.get('/api/reportes', authenticateToken, async (req, res) => {
     try {
         const confRes = await db.query('SELECT capital_base FROM configuracion WHERE id=1');
         const stats = { capital_base: confRes.rows[0] ? confRes.rows[0].capital_base : 0, interes_ganado: 0, dinero_en_calle: 0 };
@@ -494,7 +536,7 @@ app.get('/api/calcular', (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/dashboard-stats?periodo=hoy|semana|mes|total
-app.get('/api/dashboard-stats', async (req, res) => {
+app.get('/api/dashboard-stats', authenticateToken, async (req, res) => {
     const periodo = req.query.periodo || 'total';
 
     let fechaFiltro = null;
@@ -569,7 +611,7 @@ app.get('/api/dashboard-stats', async (req, res) => {
 });
 
 // GET /api/actividad-reciente - Últimos eventos del sistema
-app.get('/api/actividad-reciente', async (req, res) => {
+app.get('/api/actividad-reciente', authenticateToken, async (req, res) => {
     const sqlPagos = `
         SELECT 'pago' as tipo, u.nombre_completo, c.monto_cuota as monto, c.fecha_pago as fecha, c.metodo_pago
         FROM cuotas c
@@ -607,7 +649,7 @@ app.get('/api/actividad-reciente', async (req, res) => {
 });
 
 // GET /api/prestamos-tabla - Tabla de préstamos activos con días de atraso
-app.get('/api/prestamos-tabla', async (req, res) => {
+app.get('/api/prestamos-tabla', authenticateToken, async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const sql = `
         SELECT p.id, u.nombre_completo, u.telefono, p.fecha_inicio, p.monto, p.metodo_desembolso, p.tasa_interes_mensual,
@@ -641,7 +683,7 @@ app.get('/api/prestamos-tabla', async (req, res) => {
 });
 
 // GET /api/distribucion-cuentas - Balance estimado por canal
-app.get('/api/distribucion-cuentas', async (req, res) => {
+app.get('/api/distribucion-cuentas', authenticateToken, async (req, res) => {
     const sqlPagos = `SELECT metodo_pago as metodo, SUM(monto_cuota) as total FROM cuotas 
                       WHERE estado IN ('Pagado','Abono_interes','Agregado_capital_extra') GROUP BY metodo_pago`;
     const sqlDesembolsos = `SELECT metodo_desembolso as metodo, SUM(monto) as total FROM prestamos GROUP BY metodo_desembolso`;
