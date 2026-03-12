@@ -5,293 +5,276 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PrestAPPr - Nuevo Crédito</title>
-    <!-- Tailwind Custom CSS Used -->
     <link rel="stylesheet" href="css/styles.css">
+    <script src="js/theme.js"></script>
     <style>
-        .autocomplete-list {
-            position: absolute;
-            z-index: 50;
-            width: 100%;
-            background: var(--card);
-            border: 2px solid var(--primary);
-            border-top: none;
-            border-radius: 0 0 .75rem .75rem;
-            max-height: 200px;
-            overflow-y: auto;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        .config-card {
+            background: linear-gradient(135deg, var(--card), var(--bg));
+            border: 1px solid var(--border);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.3);
         }
-
-        .autocomplete-item {
-            padding: .65rem 1rem;
+        .summary-card {
+            background: rgba(99, 102, 241, 0.05);
+            border: 1px dashed var(--primary);
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+        }
+        .user-result-item {
+            padding: 0.85rem 1.25rem;
+            border-radius: 0.75rem;
+            margin-bottom: 0.5rem;
             cursor: pointer;
-            font-size: .9rem;
-            border-bottom: 1px solid var(--border);
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
         }
-
-        .autocomplete-item:hover {
+        .user-result-item:hover {
             background: var(--bg);
+            border-color: var(--primary);
+            transform: translateX(4px);
         }
-
-        .resumen-box {
-            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        .user-result-item.selected {
+            background: var(--primary);
             color: white;
-            border-radius: 1rem;
-            padding: 1.25rem;
+            border-color: var(--primary);
         }
-
-        .resumen-label {
-            opacity: .8;
-            font-size: .8rem;
-        }
-
-        .resumen-value {
-            font-size: 1.5rem;
+        .step-title {
+            font-size: 1.1rem;
             font-weight: 800;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
         }
-
-        .step {
-            display: none;
-        }
-
-        .step.active {
-            display: block;
+        .step-number {
+            width: 28px;
+            height: 28px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
         }
     </style>
-    <script src="js/theme.js"></script>
 </head>
 
 <body>
 
     <nav class="nav">
-        <span class="nav-brand">💰 PrestAPPr</span>
+        <span class="nav-brand">💰 PrestAPPr Pro</span>
         <div class="nav-links">
-            <a href="index.html" class="nav-link">Cobros</a>
+            <a href="index.html" class="nav-link">Dashboard</a>
             <a href="clientes.html" class="nav-link">Clientes</a>
-            <a href="nuevo-credito.html" class="nav-link active">+ Crédito</a>
-            <button id="theme-toggle" class="btn btn-sm"
-                style="background:transparent; color:inherit; padding: 0.3rem; border:none; box-shadow:none; font-size:1.2rem;"
-                onclick="toggleTheme()">🌙</button>
+            <a href="nuevo-credito.html" class="nav-link active">+ Préstamo</a>
+            <button id="theme-toggle" class="btn btn-sm" style="background:transparent; border:none; font-size:1.2rem;" onclick="toggleTheme()">🌙</button>
         </div>
     </nav>
 
-    <div class="container">
-        <div class="section-header">
-            <h1 class="section-title">Nuevo Crédito</h1>
-        </div>
+    <div class="container" style="padding-top: 2rem; padding-bottom: 6rem;">
+        
+        <h1 style="font-size:1.8rem; font-weight:900; letter-spacing:-1px; margin-bottom:0.5rem;">Configurar Nuevo Crédito</h1>
+        <p class="text-muted" style="margin-bottom:2rem;">Selecciona un cliente y define las condiciones comerciales.</p>
 
-        <form id="loan-form" class="space-y" onsubmit="enviarFormulario(event)">
-
-            <!-- ── PASO 1: Seleccionar Usuario ── -->
-            <div class="card">
-                <div style="font-weight:700; margin-bottom:.75rem;">1. Cliente</div>
-                <div style="position:relative;">
-                    <input type="text" id="user-search" class="input"
-                        placeholder="🔍 Buscar cliente por nombre o DNI..." autocomplete="off"
-                        oninput="buscarUsuarios(this.value)">
-                    <div id="autocomplete-list" class="autocomplete-list" style="display:none;"></div>
-                </div>
-                <input type="hidden" id="usuario_id" name="usuario_id" required>
-                <div id="usuario-seleccionado" style="display:none; margin-top:.75rem;"></div>
-            </div>
-
-            <!-- ── PASO 2: Datos del Crédito ── -->
-            <div class="card">
-                <div style="font-weight:700; margin-bottom:.75rem;">2. Configuración del Crédito</div>
+        <form id="form-nuevo-prestamo" onsubmit="crearPrestamo(event)">
+            <div class="grid-2" style="align-items: flex-start; gap:2rem;">
+                
+                <!-- Columna Izquierda: Configuración -->
                 <div class="space-y">
-                    <div class="form-group">
-                        <label class="label">Monto del Préstamo *</label>
-                        <input type="text" id="monto_input" class="input" placeholder="Ej. 1.000.000"
-                            oninput="formatearMontoCredito(this)" required>
-                        <input type="hidden" id="monto" name="monto" required>
-                    </div>
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label class="label">Tasa de Interés Mensual (%)</label>
-                            <input type="number" id="tasa" name="tasa_interes_mensual" class="input" value="5" min="0.1"
-                                step="0.1" oninput="calcularResumen()" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="label">Plazo (meses)</label>
-                            <input type="number" id="plazo" name="plazo_meses" class="input" value="12" min="1"
-                                max="360" oninput="calcularResumen()" required>
+                    
+                    <div class="config-card">
+                        <div class="step-title"><span class="step-number">1</span> Selección de Cliente</div>
+                        <div class="form-group" style="position:relative;">
+                            <input type="text" id="user-search" class="input" placeholder="🔍 Buscar por nombre o cédula..." 
+                                style="height:48px; padding-left:2.5rem;" oninput="buscarUsuarios(this.value)">
+                            <div id="user-results" style="margin-top:1rem; max-height:220px; overflow-y:auto;">
+                                <div class="empty-state" style="padding:1rem;">Escribe para buscar...</div>
+                            </div>
+                            <input type="hidden" id="usuario_id" required>
                         </div>
                     </div>
-                    <div class="grid-2">
-                        <div class="form-group">
-                            <label class="label">Médoto de Desembolso</label>
-                            <select id="metodo_desembolso" name="metodo_desembolso" class="select" required>
-                                <option value="Efectivo">Efectivo Físico</option>
-                                <option value="Transferencia">Transferencia Bancaria</option>
-                            </select>
+
+                    <div class="config-card">
+                        <div class="step-title"><span class="step-number">2</span> Detalles Financieros</div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label class="label">Monto a Prestar</label>
+                                <input type="text" id="monto" class="input" placeholder="Ej. 1.000.000" required oninput="formatearMoneda(this); recalcular()">
+                            </div>
+                            <div class="form-group">
+                                <label class="label">Tasa Mensual (%)</label>
+                                <input type="number" id="tasa" class="input" value="10" step="0.1" required oninput="recalcular()">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="label">Cuenta de Origen (Tuya)</label>
-                            <input type="text" id="cuenta_origen" name="cuenta_origen" class="input"
-                                placeholder="Ej. Bancolombia">
+                        <div class="grid-2 mt-1">
+                            <div class="form-group">
+                                <label class="label">Plazo (Meses)</label>
+                                <select id="plazo" class="select" onchange="recalcular()">
+                                    <option value="1">1 Mes</option>
+                                    <option value="2">2 Meses</option>
+                                    <option value="3">3 Meses</option>
+                                    <option value="6">6 Meses</option>
+                                    <option value="12">12 Meses</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="label">Método Desembolso</label>
+                                <select id="metodo_desembolso" class="select">
+                                    <option value="Efectivo">Efectivo Físico</option>
+                                    <option value="Transferencia">Transferencia</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label class="label">Fecha de Inicio</label>
-                        <input type="date" id="fecha_inicio" name="fecha_inicio" class="input" required>
-                    </div>
+
                 </div>
-            </div>
 
-            <!-- ── RESUMEN EN TIEMPO REAL ── -->
-            <div id="resumen-box" class="resumen-box" style="display:none;">
-                <div style="margin-bottom:.75rem; font-weight:700; font-size:1rem;">📊 Resumen Estimado</div>
-                <div class="grid-2" style="gap:1rem;">
-                    <div>
-                        <div class="resumen-label">Cuota Mensual</div>
-                        <div class="resumen-value" id="r-cuota">$0.00</div>
+                <!-- Columna Derecha: Resumen Real-time -->
+                <div class="space-y" style="position: sticky; top: 2rem;">
+                    
+                    <div class="config-card" style="border-top: 4px solid var(--primary);">
+                        <div class="step-title">📈 Resumen del Crédito</div>
+                        
+                        <div class="summary-card">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:0.75rem;">
+                                <span class="text-muted">Interés Total</span>
+                                <strong id="res-interes" style="color:var(--success);">$0</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-bottom:0.75rem;">
+                                <span class="text-muted">Monto Total</span>
+                                <strong id="res-total">$0</strong>
+                            </div>
+                            <div style="border-top:1px solid var(--border); margin:0.75rem 0; padding-top:0.75rem; display:flex; justify-content:space-between;">
+                                <span style="font-weight:700;">Cuota Mensual</span>
+                                <span id="res-cuota" style="font-size:1.3rem; font-weight:900; color:var(--primary);">$0</span>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:1.5rem; font-size:0.85rem; color:var(--text-muted); line-height:1.5;">
+                            * Este cálculo utiliza el sistema de amortización francés. La primera cuota vencerá en 30 días a partir de hoy.
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-block mt-2" style="height:58px; font-size:1.15rem; font-weight:800;" id="btn-crear">
+                            Desembolsar Crédito
+                        </button>
                     </div>
-                    <div>
-                        <div class="resumen-label">Total Intereses</div>
-                        <div class="resumen-value" id="r-intereses">$0.00</div>
-                    </div>
+
                 </div>
+
             </div>
-
-            <button type="submit" id="btn-submit" class="btn btn-primary btn-block" style="font-size:1.05rem;">
-                🚀 Generar Crédito y Plan de Pagos
-            </button>
-
         </form>
+
     </div>
 
     <div id="toast" class="toast"></div>
 
     <script src="js/api.js"></script>
     <script>
-        const fmt = (n) => '$' + parseFloat(n).toLocaleString('es-CO', { minimumFractionDigits: 2 });
-        let searchTimer;
-
-        // Pre-fill usuario from URL params
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('usuario_id')) {
-            document.getElementById('usuario_id').value = params.get('usuario_id');
-            document.getElementById('user-search').value = params.get('nombre') || '';
-            document.getElementById('usuario-seleccionado').style.display = 'block';
-            document.getElementById('usuario-seleccionado').innerHTML = `<span class="badge badge-primary">✓ ${decodeURIComponent(params.get('nombre') || '')}</span>`;
-        }
-
-        // Set today's date
-        document.getElementById('fecha_inicio').valueAsDate = new Date();
+        const fmt = (n) => '$' + parseFloat(n || 0).toLocaleString('es-CO', { minimumFractionDigits: 0 });
+        const resInteres = document.getElementById('res-interes');
+        const resTotal   = document.getElementById('res-total');
+        const resCuota   = document.getElementById('res-cuota');
 
         function showToast(msg, type = 'success') {
             const t = document.getElementById('toast');
             t.textContent = msg;
             t.className = `toast toast-${type} show`;
-            setTimeout(() => t.classList.remove('show'), 3500);
+            setTimeout(() => t.classList.remove('show'), 3000);
         }
 
         async function buscarUsuarios(q) {
-            const list = document.getElementById('autocomplete-list');
-            if (q.length < 1) { list.style.display = 'none'; return; }
-            clearTimeout(searchTimer);
-            searchTimer = setTimeout(async () => {
-                try {
-                    const usuarios = await api.getUsuarios(q);
-                    if (usuarios.length === 0) { list.style.display = 'none'; return; }
-                    list.innerHTML = usuarios.map(u =>
-                        `<div class="autocomplete-item" onclick="seleccionarUsuario(${u.id}, '${u.nombre_completo.replace(/'/g, "\\'")}')">
-                        <strong>${u.nombre_completo}</strong> <span style="color:var(--text-muted);font-size:.8rem;">· ${u.dni}</span>
-                    </div>`
-                    ).join('');
-                    list.style.display = 'block';
-                } catch (e) { list.style.display = 'none'; }
-            }, 250);
+            const container = document.getElementById('user-results');
+            if (q.length < 2) {
+                container.innerHTML = '<div class="empty-state" style="padding:1rem;">Escribe para buscar...</div>';
+                return;
+            }
+            try {
+                const users = await api.getUsers();
+                const filtered = users.filter(u => 
+                    u.nombre_completo.toLowerCase().includes(q.toLowerCase()) || 
+                    u.cedula.includes(q)
+                ).slice(0, 5);
+
+                if (!filtered.length) {
+                    container.innerHTML = '<div class="empty-state" style="padding:1rem;">❌ No se encontraron clientes.</div>';
+                    return;
+                }
+
+                container.innerHTML = filtered.map(u => `
+                    <div class="user-result-item" onclick="seleccionarUsuario(${u.id}, '${u.nombre_completo}', this)">
+                        <div style="width:32px; height:32px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.8rem; color:white;">👤</div>
+                        <div style="flex:1;">
+                            <div style="font-weight:700; font-size:0.95rem;">${u.nombre_completo}</div>
+                            <div class="text-muted" style="font-size:0.75rem;">CC: ${u.cedula}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                container.innerHTML = 'Error';
+            }
         }
 
-        function seleccionarUsuario(id, nombre) {
+        function seleccionarUsuario(id, nombre, el) {
+            document.querySelectorAll('.user-result-item').forEach(i => i.classList.remove('selected'));
+            el.classList.add('selected');
             document.getElementById('usuario_id').value = id;
             document.getElementById('user-search').value = nombre;
-            document.getElementById('autocomplete-list').style.display = 'none';
-            const sel = document.getElementById('usuario-seleccionado');
-            sel.style.display = 'block';
-            sel.innerHTML = `<span class="badge badge-primary">✓ ${nombre}</span>`;
+            showToast(`✅ Cliente seleccionado: ${nombre.split(' ')[0]}`);
         }
 
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#user-search')) {
-                document.getElementById('autocomplete-list').style.display = 'none';
-            }
-        });
-
-        function formatearMontoCredito(input) {
-            let valor = input.value.replace(/\D/g, '');
-            if (valor === '') {
-                input.value = '';
-                document.getElementById('monto').value = '';
-                document.getElementById('resumen-box').style.display = 'none';
-                return;
-            }
-            input.value = parseInt(valor, 10).toLocaleString('es-CO');
-            document.getElementById('monto').value = valor;
-            calcularResumen();
+        function formatearMoneda(input) {
+            let v = input.value.replace(/\D/g, '');
+            input.value = v ? parseInt(v).toLocaleString('es-CO') : '';
         }
 
-        let calcTimer;
-        function calcularResumen() {
-            const monto = parseFloat(document.getElementById('monto').value);
-            const tasa = parseFloat(document.getElementById('tasa').value);
+        async function recalcular() {
+            const monto = parseFloat(document.getElementById('monto').value.replace(/\D/g, ''));
+            const tasa  = parseFloat(document.getElementById('tasa').value);
             const plazo = parseInt(document.getElementById('plazo').value);
 
-            if (!monto || !tasa || !plazo) {
-                document.getElementById('resumen-box').style.display = 'none';
+            if (!monto || !tasa || !plazo) return;
+
+            try {
+                const res = await api.calcularResumen(monto, tasa, plazo);
+                resInteres.textContent = fmt(res.interes_total);
+                resTotal.textContent   = fmt(res.monto_total);
+                resCuota.textContent   = fmt(res.cuota_mensual);
+            } catch (e) { console.error(e); }
+        }
+
+        async function crearPrestamo(e) {
+            e.preventDefault();
+            const usuario_id = document.getElementById('usuario_id').value;
+            if (!usuario_id) {
+                showToast('Debes seleccionar un cliente de la lista', 'error');
                 return;
             }
 
-            clearTimeout(calcTimer);
-            calcTimer = setTimeout(async () => {
-                try {
-                    const res = await api.calcular(monto, tasa, plazo);
-                    document.getElementById('r-cuota').textContent = fmt(Math.round(res.cuotaMensual));
-                    document.getElementById('r-intereses').textContent = fmt(Math.round(res.totalIntereses));
-                    document.getElementById('resumen-box').style.display = 'block';
-                } catch (e) {
-                    // Fallback local calculation
-                    const i = tasa / 100;
-                    const n = plazo;
-                    const cuota = monto * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
-                    document.getElementById('r-cuota').textContent = fmt(Math.round(cuota));
-                    document.getElementById('r-intereses').textContent = fmt(Math.round(cuota * n - monto));
-                    document.getElementById('resumen-box').style.display = 'block';
-                }
-            }, 400);
-        }
+            const btn = document.getElementById('btn-crear');
+            btn.disabled = true; btn.textContent = 'Procesando...';
 
-        async function enviarFormulario(e) {
-            e.preventDefault();
-            const usuario_id = document.getElementById('usuario_id').value;
-            if (!usuario_id) { showToast('Selecciona un cliente', 'error'); return; }
-
-            const btn = document.getElementById('btn-submit');
-            btn.disabled = true;
-            btn.textContent = 'Generando...';
-
-            const fd = new FormData(e.target);
             const data = {
-                usuario_id: parseInt(fd.get('usuario_id')),
-                monto: parseFloat(document.getElementById('monto').value),
-                tasa_interes_mensual: parseFloat(fd.get('tasa_interes_mensual')),
-                plazo_meses: parseInt(fd.get('plazo_meses')),
-                fecha_inicio: fd.get('fecha_inicio'),
-                metodo_desembolso: fd.get('metodo_desembolso'),
-                cuenta_origen: fd.get('cuenta_origen')
+                usuario_id,
+                monto: parseFloat(document.getElementById('monto').value.replace(/\D/g, '')),
+                tasa_interes_mensual: parseFloat(document.getElementById('tasa').value),
+                plazo_meses: parseInt(document.getElementById('plazo').value),
+                metodo_desembolso: document.getElementById('metodo_desembolso').value
             };
 
             try {
-                const resp = await api.crearPrestamo(data);
-                showToast(`✅ Crédito #${resp.prestamo_id} creado con ${resp.cuotas_generadas} cuotas`);
-                setTimeout(() => window.location.href = `prestamo.html?id=${resp.prestamo_id}`, 1500);
+                const res = await api.createPrestamo(data);
+                showToast('🚀 Crédito desembolsado con éxito');
+                setTimeout(() => window.location.href = `prestamo.html?id=${res.id}`, 1500);
             } catch (err) {
-                showToast(err.error || 'Error al crear el crédito', 'error');
-                btn.disabled = false;
-                btn.textContent = '🚀 Generar Crédito y Plan de Pagos';
+                showToast('Error al crear el préstamo', 'error');
+                btn.disabled = false; btn.textContent = 'Desembolsar Crédito';
             }
         }
     </script>
 </body>
-
 </html>

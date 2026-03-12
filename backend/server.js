@@ -469,6 +469,197 @@ app.get('/api/calcular', (req, res) => {
     res.json(calcularResumen(monto, tasa, plazo));
 });
 
+// ─────────────────────────────────────────────
+// DASHBOARD ESTADÍSTICAS (Fase 2)
+// ─────────────────────────────────────────────
+
+// GET /api/dashboard-stats?periodo=hoy|semana|mes|total
+app.get('/api/dashboard-stats', (req, res) => {
+    const periodo = req.query.periodo || 'total';
+
+    let fechaFiltro = null;
+    const now = new Date();
+    if (periodo === 'hoy') {
+        fechaFiltro = now.toISOString().split('T')[0];
+    } else if (periodo === 'semana') {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 7);
+        fechaFiltro = d.toISOString().split('T')[0];
+    } else if (periodo === 'mes') {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 30);
+        fechaFiltro = d.toISOString().split('T')[0];
+    }
+
+    const today = now.toISOString().split('T')[0];
+    const pagoFilter = fechaFiltro ? `AND DATE(c.fecha_pago) >= '${fechaFiltro}'` : '';
+    const prestamoFilter = fechaFiltro ? `AND DATE(p.fecha_inicio) >= '${fechaFiltro}'` : '';
+
+    db.get('SELECT capital_base FROM configuracion WHERE id=1', (err, conf) => {
+        const stats = {
+            capital_libre: conf ? conf.capital_base : 0,
+            capital_prestado: 0,
+            intereses_ganados: 0,
+            pendiente_cobrar: 0,
+            cobrado_efectivo: 0,
+            cobrado_transferencia: 0,
+            prestamos_activos: 0,
+            prestamos_vencidos: 0,
+            monto_prestado_periodo: 0,
+            monto_cobrado_periodo: 0,
+            monto_desembolsado_periodo: 0
+        };
+
+        // Capital actualmente prestado (global)
+        db.get(`SELECT SUM(p.monto) as total FROM prestamos p WHERE p.estado = 'Activo'`, (err, row) => {
+            if (row && row.total) stats.capital_prestado = row.total;
+
+            // Intereses ganados (periodo)
+            db.get(`SELECT SUM(c.interes) as ganado FROM cuotas c WHERE c.estado IN ('Pagado','Abono_interes') ${pagoFilter}`, (err, row) => {
+                if (row && row.ganado) stats.intereses_ganados = row.ganado;
+
+                // Total pendiente por cobrar (global)
+                db.get(`SELECT SUM(c.monto_cuota) as pendiente FROM cuotas c WHERE c.estado = 'Pendiente'`, (err, row) => {
+                    if (row && row.pendiente) stats.pendiente_cobrar = row.pendiente;
+
+                    // Cobrado efectivo (periodo)
+                    db.get(`SELECT SUM(c.monto_cuota) as ef FROM cuotas c WHERE c.estado IN ('Pagado','Abono_interes','Agregado_capital_extra') AND c.metodo_pago = 'Efectivo' ${pagoFilter}`, (err, row) => {
+                        if (row && row.ef) stats.cobrado_efectivo = row.ef;
+
+                        // Cobrado transferencia (periodo)
+                        db.get(`SELECT SUM(c.monto_cuota) as tr FROM cuotas c WHERE c.estado IN ('Pagado','Abono_interes','Agregado_capital_extra') AND c.metodo_pago = 'Transferencia' ${pagoFilter}`, (err, row) => {
+                            if (row && row.tr) stats.cobrado_transferencia = row.tr;
+
+                            // Préstamos activos
+                            db.get(`SELECT COUNT(*) as activos FROM prestamos WHERE estado = 'Activo'`, (err, row) => {
+                                if (row) stats.prestamos_activos = row.activos;
+
+                                // Préstamos vencidos
+                                db.get(`SELECT COUNT(DISTINCT c.prestamo_id) as vencidos FROM cuotas c WHERE c.estado = 'Pendiente' AND c.fecha_vencimiento < '${today}'`, (err, row) => {
+                                    if (row) stats.prestamos_vencidos = row.vencidos;
+
+                                    // Monto prestado / desembolsado
+                                    db.get(`SELECT SUM(p.monto) as prestado FROM prestamos p WHERE 1=1 ${prestamoFilter}`, (err, row) => {
+                                        if (row && row.prestado) {
+                                            stats.monto_prestado_periodo = row.prestado;
+                                            stats.monto_desembolsado_periodo = row.prestado;
+                                        }
+
+                                        // Monto cobrado
+                                        db.get(`SELECT SUM(c.monto_cuota) as cobrado FROM cuotas c WHERE c.estado IN ('Pagado','Abono_interes','Agregado_capital_extra') ${pagoFilter}`, (err, row) => {
+                                            if (row && row.cobrado) stats.monto_cobrado_periodo = row.cobrado;
+                                            res.json(stats);
+                                        });
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+});
+
+
+// GET /api/actividad-reciente - Últimos eventos del sistema
+app.get('/api/actividad-reciente', (req, res) => {
+    // Pagos recientes
+    const sqlPagos = `
+        SELECT 'pago' as tipo, u.nombre_completo, c.monto_cuota as monto, c.fecha_pago as fecha, c.metodo_pago
+        FROM cuotas c
+        JOIN prestamos p ON c.prestamo_id = p.id
+        JOIN usuarios u ON p.usuario_id = u.id
+        WHERE c.estado IN ('Pagado','Abono_interes','Agregado_capital_extra') AND c.fecha_pago IS NOT NULL
+        ORDER BY c.fecha_pago DESC LIMIT 8
+    `;
+    // Préstamos recientes
+    const sqlPrestamos = `
+        SELECT 'prestamo' as tipo, u.nombre_completo, p.monto, p.created_at as fecha, p.metodo_desembolso as metodo_pago
+        FROM prestamos p
+        JOIN usuarios u ON p.usuario_id = u.id
+        ORDER BY p.created_at DESC LIMIT 6
+    `;
+    // Clientes nuevos
+    const sqlClientes = `
+        SELECT 'cliente' as tipo, u.nombre_completo, 0 as monto, u.created_at as fecha, NULL as metodo_pago
+        FROM usuarios u WHERE u.estado = 'Activo'
+        ORDER BY u.created_at DESC LIMIT 4
+    `;
+
+    Promise.all([
+        new Promise((resolve) => db.all(sqlPagos, [], (err, rows) => resolve(rows || []))),
+        new Promise((resolve) => db.all(sqlPrestamos, [], (err, rows) => resolve(rows || []))),
+        new Promise((resolve) => db.all(sqlClientes, [], (err, rows) => resolve(rows || [])))
+    ]).then(([pagos, prestamos, clientes]) => {
+        const todos = [...pagos, ...prestamos, ...clientes]
+            .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+            .slice(0, 15);
+        res.json(todos);
+    });
+});
+
+// GET /api/prestamos-tabla - Tabla de préstamos activos con días de atraso
+app.get('/api/prestamos-tabla', (req, res) => {
+    const today = new Date().toISOString().split('T')[0];
+    const sql = `
+        SELECT p.id, u.nombre_completo, u.telefono, p.fecha_inicio, p.monto, p.metodo_desembolso, p.tasa_interes_mensual,
+               (SELECT MIN(c.fecha_vencimiento) FROM cuotas c WHERE c.prestamo_id = p.id AND c.estado = 'Pendiente' AND c.fecha_vencimiento < DATE('now')) as fecha_atraso_mas_antigua,
+               (SELECT SUM(c.monto_cuota) FROM cuotas c WHERE c.prestamo_id = p.id AND c.estado = 'Pendiente') as saldo_pendiente,
+               (SELECT COUNT(*) FROM cuotas c WHERE c.prestamo_id = p.id AND c.estado = 'Pendiente' AND c.fecha_vencimiento < DATE('now')) as cuotas_vencidas
+        FROM prestamos p
+        JOIN usuarios u ON p.usuario_id = u.id
+        WHERE p.estado = 'Activo'
+        ORDER BY fecha_atraso_mas_antigua ASC NULLS LAST, p.fecha_inicio DESC
+    `;
+    db.all(sql, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const today_d = new Date(today);
+        const result = rows.map(r => {
+            let dias_atraso = 0;
+            if (r.fecha_atraso_mas_antigua) {
+                const diff = today_d - new Date(r.fecha_atraso_mas_antigua);
+                dias_atraso = Math.floor(diff / (1000 * 60 * 60 * 24));
+            }
+            return {
+                ...r,
+                dias_atraso,
+                estado_tabla: dias_atraso > 0 ? 'Vencido' : 'Vigente'
+            };
+        });
+        res.json(result);
+    });
+});
+
+// GET /api/distribucion-cuentas - Balance estimado por canal
+app.get('/api/distribucion-cuentas', (req, res) => {
+    // Definimos balance inicial arbitrario si no hay config (esto debería venir de DB idealmente)
+    // Pero por ahora calcularemos flujos netos
+    const sqlPagos = `SELECT metodo_pago as metodo, SUM(monto_cuota) as total FROM cuotas 
+                      WHERE estado IN ('Pagado','Abono_interes','Agregado_capital_extra') GROUP BY metodo_pago`;
+    const sqlDesembolsos = `SELECT metodo_desembolso as metodo, SUM(monto) as total FROM prestamos GROUP BY metodo_desembolso`;
+
+    Promise.all([
+        new Promise(resolve => db.all(sqlPagos, [], (err, rows) => resolve(rows || []))),
+        new Promise(resolve => db.all(sqlDesembolsos, [], (err, rows) => resolve(rows || [])))
+    ]).then(([pagos, desembolsos]) => {
+        const balance = {
+            Efectivo: 0,
+            Transferencia: 0
+        };
+
+        pagos.forEach(p => { if (balance[p.metodo] !== undefined) balance[p.metodo] += p.total; });
+        desembolsos.forEach(d => { if (balance[d.metodo] !== undefined) balance[d.metodo] -= d.total; });
+
+        // Sumamos el capital base a la caja de efectivo por defecto
+        db.get('SELECT capital_base FROM configuracion WHERE id=1', (err, conf) => {
+            const capitalBase = conf ? conf.capital_base : 0;
+            balance.Efectivo += capitalBase;
+            res.json(balance);
+        });
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`\n🚀 PrestAPPr Backend ejecutándose en http://localhost:${PORT}`);
     console.log(`   API disponible en http://localhost:${PORT}/api\n`);
