@@ -116,8 +116,8 @@
                 <div class="space-y">
                     <div class="form-group">
                         <label class="label">Monto Solicitado *</label>
-                        <input type="number" name="monto_solicitado" class="input" required placeholder="Ej. 1000"
-                            min="10">
+                        <input type="text" name="monto_solicitado" id="monto_solicitado_input" class="input" required placeholder="Ej. 1.000.000"
+                            oninput="formatearMonedaInput(this)">
                     </div>
                     <div class="form-group">
                         <label class="label">Plazo Estimado (Meses) *</label>
@@ -158,6 +158,11 @@
             setTimeout(() => t.classList.remove('show'), 4000);
         }
 
+        function formatearMonedaInput(input) {
+            let valor = input.value.replace(/\D/g, "");
+            input.value = valor ? parseInt(valor, 10).toLocaleString('es-CO') : "";
+        }
+
         function siguientePaso() {
             const step1Inputs = document.querySelectorAll('#step-1 input[required]');
             let valid = true;
@@ -193,6 +198,11 @@
             const data = Object.fromEntries(fd.entries());
 
             try {
+                // Ensure monto is numeric
+                if (data.monto_solicitado) {
+                    data.monto_solicitado = data.monto_solicitado.replace(/\./g, '');
+                }
+
                 // Hacemos el request a la nueva API de solicitudes
                 await api.crearSolicitud(data);
 
