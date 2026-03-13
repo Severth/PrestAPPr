@@ -356,10 +356,10 @@
                     </div>
                     <div>
                         <div class="chart-container" style="height:180px;">
-                            <canvas id="accountsChart"></canvas>
+                            <canvas id="healthChart"></canvas>
                         </div>
                         <div style="text-align:center; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">
-                            Efectivo vs Bancos</div>
+                            Salud de la Cartera</div>
                     </div>
                 </div>
             </div>
@@ -635,7 +635,6 @@
             document.getElementById('fecha-display').textContent =
                 now.toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             cargarStats();
-            cargarDistribucionCuentas();
             cargarCobrosHoy();
             cargarVencidosAuto();
             cargarTransacciones();
@@ -692,6 +691,7 @@
                 }, 100);
 
                 actualizarGraficaFlujo(s.monto_prestado_periodo, s.monto_cobrado_periodo);
+                actualizarGraficaSalud(al_dia, s.prestamos_vencidos);
             } catch (e) {
                 console.error('Error cargando stats', e);
             }
@@ -741,68 +741,66 @@
             });
         }
 
-        /* ══ DONUT CHART: CUENTAS ══ */
-        async function cargarDistribucionCuentas() {
-            try {
-                const b = await api.getDistribucionCuentas();
-                const ctx = document.getElementById('accountsChart').getContext('2d');
-                if (accountsChartInstance) accountsChartInstance.destroy();
+        /* ══ DONUT CHART: SALUD CARTERA ══ */
+        let healthChartInstance = null;
+        function actualizarGraficaSalud(aldia, mora) {
+            const ctx = document.getElementById('healthChart').getContext('2d');
+            if (healthChartInstance) healthChartInstance.destroy();
 
-                const centerPluginAcc = {
-                    id: 'centerTextAcc',
-                    beforeDraw(chart) {
-                        const { width, height, ctx } = chart;
-                        ctx.restore();
-                        const fs = (height / 140).toFixed(2);
-                        ctx.font = `800 ${fs}em Outfit, sans-serif`;
-                        ctx.textBaseline = 'middle';
-                        const total = b.Efectivo + b.Transferencia;
-                        const label = fmt(total);
-                        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text').trim();
-                        const tx = Math.round((width - ctx.measureText(label).width) / 2);
-                        ctx.fillText(label, tx, height / 2 - 8);
-                        ctx.font = `600 ${(fs * 0.4).toFixed(2)}em Outfit, sans-serif`;
-                        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
-                        const sub = 'En Caja';
-                        const tx2 = Math.round((width - ctx.measureText(sub).width) / 2);
-                        ctx.fillText(sub, tx2, height / 2 + 14);
-                        ctx.save();
-                    }
-                };
+            const centerPluginHealth = {
+                id: 'centerTextHealth',
+                beforeDraw(chart) {
+                    const { width, height, ctx } = chart;
+                    ctx.restore();
+                    const fs = (height / 140).toFixed(2);
+                    ctx.font = `800 ${fs}em Outfit, sans-serif`;
+                    ctx.textBaseline = 'middle';
+                    const total = aldia + mora;
+                    const label = total.toString();
+                    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text').trim();
+                    const tx = Math.round((width - ctx.measureText(label).width) / 2);
+                    ctx.fillText(label, tx, height / 2 - 8);
+                    ctx.font = `600 ${(fs * 0.4).toFixed(2)}em Outfit, sans-serif`;
+                    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
+                    const sub = 'Préstamos';
+                    const tx2 = Math.round((width - ctx.measureText(sub).width) / 2);
+                    ctx.fillText(sub, tx2, height / 2 + 14);
+                    ctx.save();
+                }
+            };
 
-                accountsChartInstance = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Efectivo', 'Transferencia'],
-                        datasets: [{
-                            data: [b.Efectivo, b.Transferencia],
-                            backgroundColor: ['#94a3b8', '#a855f7'],
-                            borderWidth: 0,
-                            hoverOffset: 8,
-                            borderRadius: 4
-                        }]
-                    },
-                    plugins: [centerPluginAcc],
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                callbacks: { 
-                                    label: (ctx) => {
-                                        const total = b.Efectivo + b.Transferencia;
-                                        const val = ctx.parsed;
-                                        const pct = total > 0 ? Math.round((val / total) * 100) : 0;
-                                        return ` ${ctx.label}: ${fmt(val)} (${pct}%)`;
-                                    }
+            healthChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Al Día', 'En Mora'],
+                    datasets: [{
+                        data: [aldia, mora],
+                        backgroundColor: ['#10b981', '#ef4444'],
+                        borderWidth: 0,
+                        hoverOffset: 8,
+                        borderRadius: 4
+                    }]
+                },
+                plugins: [centerPluginHealth],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: { 
+                                label: (ctx) => {
+                                    const total = aldia + mora;
+                                    const val = ctx.parsed;
+                                    const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                                    return ` ${ctx.label}: ${val} (${pct}%)`;
                                 }
                             }
-                        },
-                        cutout: '75%'
-                    }
-                });
-            } catch (e) { console.error(e); }
+                        }
+                    },
+                    cutout: '75%'
+                }
+            });
         }
 
         /* ══ COBROS HOY ══ */

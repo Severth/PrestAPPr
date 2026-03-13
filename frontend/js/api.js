@@ -62,10 +62,6 @@ const api = {
         return this.call(`/dashboard-stats?periodo=${periodo}`);
     },
 
-    async getDistribucionCuentas() {
-        return this.call('/distribucion-cuentas');
-    },
-
     async getActividadReciente() {
         return this.call('/actividad-reciente');
     },
