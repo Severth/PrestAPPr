@@ -359,7 +359,7 @@
                             <canvas id="healthChart"></canvas>
                         </div>
                         <div style="text-align:center; font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">
-                            Salud de la Cartera</div>
+                            Riesgo de Cartera (Capital)</div>
                     </div>
                 </div>
             </div>
@@ -691,7 +691,8 @@
                 }, 100);
 
                 actualizarGraficaFlujo(s.monto_prestado_periodo, s.monto_cobrado_periodo);
-                actualizarGraficaSalud(al_dia, s.prestamos_vencidos);
+                const dineroAlDia = s.pendiente_cobrar - (s.dinero_vencido || 0);
+                actualizarGraficaSalud(dineroAlDia, s.dinero_vencido || 0);
             } catch (e) {
                 console.error('Error cargando stats', e);
             }
@@ -741,9 +742,9 @@
             });
         }
 
-        /* ══ DONUT CHART: SALUD CARTERA ══ */
+        /* ══ DONUT CHART: RIESGO DE CARTERA (MONETARIO) ══ */
         let healthChartInstance = null;
-        function actualizarGraficaSalud(aldia, mora) {
+        function actualizarGraficaSalud(aldiaDinero, moraDinero) {
             const ctx = document.getElementById('healthChart').getContext('2d');
             if (healthChartInstance) healthChartInstance.destroy();
 
@@ -755,14 +756,14 @@
                     const fs = (height / 140).toFixed(2);
                     ctx.font = `800 ${fs}em Outfit, sans-serif`;
                     ctx.textBaseline = 'middle';
-                    const total = aldia + mora;
-                    const label = total.toString();
+                    const total = aldiaDinero + moraDinero;
+                    const label = total > 0 ? fmt(total) : '$0';
                     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text').trim();
                     const tx = Math.round((width - ctx.measureText(label).width) / 2);
                     ctx.fillText(label, tx, height / 2 - 8);
                     ctx.font = `600 ${(fs * 0.4).toFixed(2)}em Outfit, sans-serif`;
                     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
-                    const sub = 'Préstamos';
+                    const sub = 'Pendiente Total';
                     const tx2 = Math.round((width - ctx.measureText(sub).width) / 2);
                     ctx.fillText(sub, tx2, height / 2 + 14);
                     ctx.save();
@@ -772,9 +773,9 @@
             healthChartInstance = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Al Día', 'En Mora'],
+                    labels: ['Al Día (Dinero)', 'Riesgo / Mora (Dinero)'],
                     datasets: [{
-                        data: [aldia, mora],
+                        data: [aldiaDinero, moraDinero],
                         backgroundColor: ['#10b981', '#ef4444'],
                         borderWidth: 0,
                         hoverOffset: 8,
@@ -790,10 +791,10 @@
                         tooltip: {
                             callbacks: { 
                                 label: (ctx) => {
-                                    const total = aldia + mora;
+                                    const total = aldiaDinero + moraDinero;
                                     const val = ctx.parsed;
                                     const pct = total > 0 ? Math.round((val / total) * 100) : 0;
-                                    return ` ${ctx.label}: ${val} (${pct}%)`;
+                                    return ` ${ctx.label}: ${fmt(val)} (${pct}%)`;
                                 }
                             }
                         }

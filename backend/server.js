@@ -581,7 +581,8 @@ app.get('/api/dashboard-stats', authenticateToken, async (req, res) => {
             prestamos_vencidos: 0,
             monto_prestado_periodo: 0,
             monto_cobrado_periodo: 0,
-            monto_desembolsado_periodo: 0
+            monto_desembolsado_periodo: 0,
+            dinero_vencido: 0
         };
 
         const confRes = await db.query('SELECT capital_base FROM configuracion WHERE id=1');
@@ -607,6 +608,9 @@ app.get('/api/dashboard-stats', authenticateToken, async (req, res) => {
 
         const vencidosRes = await db.query(`SELECT COUNT(DISTINCT c.prestamo_id) as vencidos FROM cuotas c WHERE c.estado = 'Pendiente' AND c.fecha_vencimiento < $1`, [today]);
         stats.prestamos_vencidos = vencidosRes.rows[0].vencidos || 0;
+
+        const dineroVencidoRes = await db.query(`SELECT SUM(c.monto_cuota) as dinero_vencido FROM cuotas c WHERE c.estado = 'Pendiente' AND c.fecha_vencimiento < $1`, [today]);
+        stats.dinero_vencido = dineroVencidoRes.rows[0].dinero_vencido || 0;
 
         const prestadoPeriodoRes = await db.query(`SELECT SUM(p.monto) as prestado FROM prestamos p WHERE 1=1 ${prestamoFilter}`, params);
         stats.monto_prestado_periodo = prestadoPeriodoRes.rows[0].prestado || 0;
