@@ -1,4 +1,6 @@
-const API_URL = "https://prestappr-production.up.railway.app";
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:3001' 
+    : 'https://prestappr-production.up.railway.app';
 const BASE_URL = `${API_URL}/api`;
 
 const api = {
@@ -24,9 +26,9 @@ const api = {
         
         const res = await fetch(url, { ...options, headers });
         
-        if (res.status === 401) {
+        if (res.status === 401 || res.status === 403) {
             this.logout();
-            throw { error: 'Sesión expirada' };
+            throw { error: 'Sesión expirada o acceso denegado' };
         }
         
         return res;
