@@ -309,49 +309,35 @@
             </div>
         </div>
 
-        <!-- ══ SECCIÓN 1: 6 TARJETAS DE MÉTRICAS ══ -->
-        <div class="grid-6" style="margin-bottom:1.75rem;">
-            <!-- Capital Libre -->
+        <!-- ══ SECCIÓN 1: 4 TARJETAS DE MÉTRICAS (Jerarquía sugerida) ══ -->
+        <div class="grid-4" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom:1.75rem;">
+            <!-- Capital Total (Disponible + En Calle) -->
+            <div class="stat-card sc-purple" onclick="editarCapital()" style="cursor:pointer;">
+                <div class="stat-card-accent"></div>
+                <div class="stat-card-icon">💎</div>
+                <div class="stat-card-value" id="s-capital-total">...</div>
+                <div class="stat-card-label">Capital Total (Patrimonio)</div>
+            </div>
+            <!-- Capital Libre (Liquidez) -->
             <div class="stat-card sc-blue" onclick="editarCapital()" style="cursor:pointer;">
                 <div class="stat-card-accent"></div>
                 <div class="stat-card-icon">💰</div>
                 <div class="stat-card-value" id="s-capital-libre">...</div>
-                <div class="stat-card-label">Capital Libre</div>
+                <div class="stat-card-label">Capital Libre (Liquidez)</div>
             </div>
-            <!-- Capital Prestado -->
+            <!-- Capital Prestado (Inversión) -->
             <div class="stat-card sc-amber">
                 <div class="stat-card-accent"></div>
                 <div class="stat-card-icon">📤</div>
                 <div class="stat-card-value" id="s-capital-prestado">...</div>
-                <div class="stat-card-label">En Préstamos</div>
+                <div class="stat-card-label">En Calle (Inversión)</div>
             </div>
-            <!-- Intereses ganados -->
+            <!-- Intereses ganados (Utilidades) -->
             <div class="stat-card sc-green">
                 <div class="stat-card-accent"></div>
                 <div class="stat-card-icon">📈</div>
                 <div class="stat-card-value" id="s-intereses">...</div>
-                <div class="stat-card-label">Intereses Ganados</div>
-            </div>
-            <!-- Pendiente por cobrar -->
-            <div class="stat-card sc-orange">
-                <div class="stat-card-accent"></div>
-                <div class="stat-card-icon">⏳</div>
-                <div class="stat-card-value" id="s-pendiente">...</div>
-                <div class="stat-card-label">Por Cobrar</div>
-            </div>
-            <!-- Cobrado Efectivo -->
-            <div class="stat-card sc-slate">
-                <div class="stat-card-accent"></div>
-                <div class="stat-card-icon">🏦</div>
-                <div class="stat-card-value" id="s-efectivo">...</div>
-                <div class="stat-card-label">En Efectivo</div>
-            </div>
-            <!-- Cobrado Transferencia -->
-            <div class="stat-card sc-purple">
-                <div class="stat-card-accent"></div>
-                <div class="stat-card-icon">💳</div>
-                <div class="stat-card-value" id="s-transferencia">...</div>
-                <div class="stat-card-label">Transferencias</div>
+                <div class="stat-card-label">Utilidades (Intereses Ganados)</div>
             </div>
         </div>
 
@@ -679,12 +665,11 @@
             try {
                 const s = await api.getDashboardStats(periodoActual);
 
+                const capital_total = (s.capital_libre || 0) + (s.capital_prestado || 0);
+                document.getElementById('s-capital-total').textContent = fmt(capital_total);
                 document.getElementById('s-capital-libre').textContent = fmt(s.capital_libre);
                 document.getElementById('s-capital-prestado').textContent = fmt(s.capital_prestado);
                 document.getElementById('s-intereses').textContent = fmt(s.intereses_ganados);
-                document.getElementById('s-pendiente').textContent = fmt(s.pendiente_cobrar);
-                document.getElementById('s-efectivo').textContent = fmt(s.cobrado_efectivo);
-                document.getElementById('s-transferencia').textContent = fmt(s.cobrado_transferencia);
 
                 document.getElementById('stat-activos').textContent = s.prestamos_activos;
                 document.getElementById('stat-vencidos').textContent = s.prestamos_vencidos;
@@ -706,14 +691,14 @@
                     document.getElementById('bar-prestado').style.width = prePct + '%';
                 }, 100);
 
-                actualizarGraficaBalance(s.capital_libre, s.capital_prestado, s.intereses_ganados);
+                actualizarGraficaBalance(s.capital_libre, s.capital_prestado);
             } catch (e) {
                 console.error('Error cargando stats', e);
             }
         }
 
         /* ══ DONUT CHART: BALANCE ══ */
-        function actualizarGraficaBalance(libre, prestado, ganancia) {
+        function actualizarGraficaBalance(libre, prestado) {
             const ctx = document.getElementById('balanceChart').getContext('2d');
             if (balanceChartInstance) balanceChartInstance.destroy();
 
@@ -728,14 +713,14 @@
                     const fs = (height / 140).toFixed(2);
                     ctx.font = `800 ${fs}em Outfit, sans-serif`;
                     ctx.textBaseline = 'middle';
-                    const total = (libre + prestado + ganancia);
+                    const total = libre + prestado;
                     const label = total > 0 ? fmt(total) : '$0';
                     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#1e293b';
                     const tx = Math.round((width - ctx.measureText(label).width) / 2);
                     ctx.fillText(label, tx, height / 2 - 8);
                     ctx.font = `600 ${(fs * 0.4).toFixed(2)}em Outfit, sans-serif`;
                     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim();
-                    const sub = 'Total';
+                    const sub = 'Capital Total';
                     const tx2 = Math.round((width - ctx.measureText(sub).width) / 2);
                     ctx.fillText(sub, tx2, height / 2 + 14);
                     ctx.save();
@@ -745,10 +730,10 @@
             balanceChartInstance = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Caja', 'Prestado', 'Ganancia'],
+                    labels: ['Caja (Libre)', 'Calle (Préstamos)'],
                     datasets: [{
-                        data: [libre, prestado, ganancia],
-                        backgroundColor: ['#6366f1', '#f59e0b', '#10b981'],
+                        data: [libre, prestado],
+                        backgroundColor: ['#6366f1', '#f59e0b'],
                         borderWidth: 0,
                         hoverOffset: 8,
                         borderRadius: 4
@@ -761,7 +746,14 @@
                     plugins: {
                         legend: { display: false },
                         tooltip: {
-                            callbacks: { label: (ctx) => ` ${ctx.label}: ${fmt(ctx.parsed)}` }
+                            callbacks: { 
+                                label: (ctx) => {
+                                    const total = libre + prestado;
+                                    const val = ctx.parsed;
+                                    const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                                    return ` ${ctx.label}: ${fmt(val)} (${pct}%)`;
+                                }
+                            }
                         }
                     },
                     cutout: '75%'
@@ -817,7 +809,14 @@
                         plugins: {
                             legend: { display: false },
                             tooltip: {
-                                callbacks: { label: (ctx) => ` ${ctx.label}: ${fmt(ctx.parsed)}` }
+                                callbacks: { 
+                                    label: (ctx) => {
+                                        const total = b.Efectivo + b.Transferencia;
+                                        const val = ctx.parsed;
+                                        const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                                        return ` ${ctx.label}: ${fmt(val)} (${pct}%)`;
+                                    }
+                                }
                             }
                         },
                         cutout: '75%'
